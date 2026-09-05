@@ -4,7 +4,7 @@ import { getStoredCredentials, clearCredentials } from "./api/config";
 import { DevicesPage } from "./pages/DevicesPage";
 import { CarLogsPage } from "./pages/CarLogsPage";
 import { ShoppingPage } from "./pages/ShoppingPage";
-import { WoffuLogsPage } from "./pages/WoffuLogsPage";
+import { WoffuManagerPage } from "./pages/WoffuManagerPage";
 
 type Tab = "devices" | "carlogs" | "shopping" | "woffu";
 
@@ -71,7 +71,7 @@ export default function App() {
                 {tab === "devices" && <DevicesPage />}
                 {tab === "carlogs" && <CarLogsPage />}
                 {tab === "shopping" && <ShoppingPage />}
-                {tab === "woffu" && <WoffuLogsPage />}
+                {tab === "woffu" && <WoffuManagerPage />}
             </main>
         </div>
     );
