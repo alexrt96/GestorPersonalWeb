@@ -63,6 +63,14 @@ export interface Destination {
     createdAt: number;
 }
 
+export interface AuthResponse {
+    token: string;
+    user: { id: number; username: string };
+}
+
+/** Módulos activables por usuario: id de módulo -> activado. */
+export type ModuleSettings = Record<string, boolean>;
+
 export interface WoffuLog {
     id: number;
     type: string;

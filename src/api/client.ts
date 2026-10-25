@@ -1,10 +1,12 @@
-import { getStoredCredentials } from "./config";
+import { clearSession, getStoredCredentials, getStoredSession } from "./config";
 import type {
+    AuthResponse,
     BlacklistEntry,
     CarLog,
     Destination,
     Device,
     DiaryMonth,
+    ModuleSettings,
     ShoppingItem,
     ShoppingTemplate,
     ShoppingTemplateDetail,
@@ -23,18 +25,32 @@ export class ApiError extends Error {
     }
 }
 
+let unauthorizedHandler: (() => void) | null = null;
+
+/** Registra qué hacer cuando la API rechaza la sesión (token caducado o revocado). */
+export function setUnauthorizedHandler(handler: (() => void) | null): void {
+    unauthorizedHandler = handler;
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
     const creds = getStoredCredentials();
     if (!creds) throw new ApiError(401, "Faltan credenciales de la API");
+    const session = getStoredSession();
 
     const res = await fetch(`${creds.baseUrl}${path}`, {
         ...init,
         headers: {
             "x-api-key": creds.apiKey,
+            ...(session ? { Authorization: `Bearer ${session.token}` } : {}),
             ...(init?.body ? { "Content-Type": "application/json" } : {}),
             ...init?.headers,
         },
     });
+
+    if (res.status === 401 && session) {
+        clearSession();
+        unauthorizedHandler?.();
+    }
 
     if (!res.ok) {
         const body = await res.text().catch(() => "");
@@ -72,7 +88,36 @@ export function wakeUpApi(): void {
     });
 }
 
+async function authRequest(path: "/api/auth/login" | "/api/auth/register", username: string, password: string): Promise<AuthResponse> {
+    const creds = getStoredCredentials();
+    if (!creds) throw new ApiError(401, "Faltan credenciales de la API");
+
+    let res: Response;
+    try {
+        res = await fetch(`${creds.baseUrl}${path}`, {
+            method: "POST",
+            headers: { "x-api-key": creds.apiKey, "Content-Type": "application/json" },
+            body: JSON.stringify({ username, password }),
+        });
+    } catch {
+        throw new ApiError(0, "No se pudo conectar con la API");
+    }
+    const body = await res.json().catch(() => null);
+    if (!res.ok) {
+        throw new ApiError(res.status, body?.message ?? (res.status === 401 ? "La API key no es válida" : `Error ${res.status}`));
+    }
+    return body as AuthResponse;
+}
+
 export const api = {
+    login: (username: string, password: string) => authRequest("/api/auth/login", username, password),
+    register: (username: string, password: string) => authRequest("/api/auth/register", username, password),
+    logout: () => request<void>("/api/auth/logout", { method: "POST" }),
+    modules: () => request<ModuleSettings>("/api/me/modules"),
+    saveModules: (changes: ModuleSettings) =>
+        request<ModuleSettings>("/api/me/modules", { method: "PUT", body: JSON.stringify(changes) }),
+
+
     devices: () => request<Device[]>("/api/devices"),
     blacklist: () => request<BlacklistEntry[]>("/api/blacklist"),
     carLogs: (params?: { level?: string; deviceId?: string; limit?: number }) => {
