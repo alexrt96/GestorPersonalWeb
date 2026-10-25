@@ -78,43 +78,22 @@ export default function App() {
 
     return (
         <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
-            <header
-                style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    padding: "14px 24px",
-                    borderBottom: "1px solid var(--color-border)",
-                }}
-            >
-                <div style={{ display: "flex", alignItems: "center", gap: 24 }}>
-                    <strong style={{ fontSize: 15 }}>GestorPersonal</strong>
-                    <nav style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-                        {visibleTabs.map((t) => (
-                            <button
-                                key={t.id}
-                                onClick={() => setTab(t.id)}
-                                style={{
-                                    background: activeTab === t.id ? "var(--color-surface)" : "transparent",
-                                    color: activeTab === t.id ? "var(--color-text)" : "var(--color-text-secondary)",
-                                    border: "none",
-                                    borderRadius: 8,
-                                    padding: "8px 14px",
-                                    fontSize: 13,
-                                    cursor: "pointer",
-                                }}
-                            >
-                                {t.label}
-                            </button>
-                        ))}
-                    </nav>
-                </div>
-                <span style={{ display: "flex", alignItems: "center", gap: 12, fontSize: 12, color: "var(--color-text-secondary)" }}>
-                    {username}
-                    <button
-                        onClick={handleLogout}
-                        style={{ background: "transparent", border: "none", color: "var(--color-text-secondary)", fontSize: 12, cursor: "pointer", textDecoration: "underline" }}
-                    >
+            <header className="app-header">
+                <strong className="app-brand">GestorPersonal</strong>
+                <nav className="app-nav">
+                    {visibleTabs.map((t) => (
+                        <button
+                            key={t.id}
+                            className={`app-tab${activeTab === t.id ? " active" : ""}`}
+                            onClick={() => setTab(t.id)}
+                        >
+                            {t.label}
+                        </button>
+                    ))}
+                </nav>
+                <span className="app-user">
+                    <span className="app-user-name">{username}</span>
+                    <button className="app-logout" onClick={handleLogout}>
                         Cerrar sesión
                     </button>
                 </span>

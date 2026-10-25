@@ -166,6 +166,7 @@ export function ShoppingPage() {
                                 key={item.id}
                                 style={{
                                     display: "flex",
+                                    flexWrap: "wrap",
                                     alignItems: "center",
                                     gap: 10,
                                     padding: "6px 0",
@@ -182,7 +183,9 @@ export function ShoppingPage() {
                                 />
                                 <span
                                     style={{
-                                        flex: 1,
+                                        flex: "1 1 120px",
+                                        minWidth: 0,
+                                        overflowWrap: "anywhere",
                                         opacity: item.checked ? 0.5 : 1,
                                         textDecoration: item.checked ? "line-through" : "none",
                                     }}

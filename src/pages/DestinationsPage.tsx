@@ -89,7 +89,7 @@ export function DestinationsPage() {
                 </form>
             </div>
 
-            <div style={{ ...shared.card, padding: 0, overflow: "hidden", height: 420 }}>
+            <div style={{ ...shared.card, padding: 0, overflow: "hidden", height: "min(420px, 60vh)" }}>
                 <MapContainer center={[40.4168, -3.7038]} zoom={5} style={{ height: "100%", width: "100%" }}>
                     <TileLayer
                         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'

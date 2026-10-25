@@ -16,7 +16,7 @@ export function WoffuManagerPage() {
 
     return (
         <div>
-            <div style={{ display: "flex", gap: 4, padding: "12px 24px 0" }}>
+            <div className="sub-tabs">
                 {SUB_TABS.map((t) => (
                     <button
                         key={t.id}
@@ -30,6 +30,8 @@ export function WoffuManagerPage() {
                             padding: "8px 16px",
                             fontSize: 13,
                             cursor: "pointer",
+                            whiteSpace: "nowrap",
+                            flexShrink: 0,
                         }}
                     >
                         {t.label}
