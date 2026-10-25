@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { api, ApiError } from "../api/client";
 import { usePolling } from "../hooks/usePolling";
-import type { ShoppingTemplateDetail } from "../api/types";
+import type { ShoppingItem, ShoppingSuggestion, ShoppingTemplateDetail } from "../api/types";
 import { Alert, EmptyState, PageHeader, RefreshButton, SkeletonRows } from "../components/ui";
 import { Icon } from "../components/Icon";
 
@@ -35,7 +35,39 @@ export function ShoppingPage() {
     const [newName, setNewName] = useState("");
     const [newQuantity, setNewQuantity] = useState(1);
     const [newCategory, setNewCategory] = useState("Otros");
+
+    // Autocompletado del nombre: sugerencias del historial (se piden 250 ms después de dejar de escribir).
+    // Elegir una sugerencia pone su categoría habitual, salvo que el usuario ya haya elegido una a mano.
+    const [suggestions, setSuggestions] = useState<ShoppingSuggestion[]>([]);
+    const [categoryTouched, setCategoryTouched] = useState(false);
+    useEffect(() => {
+        const q = newName.trim();
+        if (!q) return;
+        let cancelled = false;
+        const id = setTimeout(() => {
+            api.shoppingSuggestions(q)
+                .then((s) => !cancelled && setSuggestions(s))
+                .catch(() => !cancelled && setSuggestions([]));
+        }, 250);
+        return () => {
+            cancelled = true;
+            clearTimeout(id);
+        };
+    }, [newName]);
     const [busy, setBusy] = useState(false);
+
+    // Último borrado deshacible (producto o carro vaciado); el aviso se retira solo a los 10 s.
+    const [undo, setUndo] = useState<{ message: string; items: ShoppingItem[] } | null>(null);
+    useEffect(() => {
+        if (!undo) return;
+        const id = setTimeout(() => setUndo(null), 10_000);
+        return () => clearTimeout(id);
+    }, [undo]);
+
+    // Edición en línea de un producto (nombre y categoría).
+    const [editingId, setEditingId] = useState<number | null>(null);
+    const [editName, setEditName] = useState("");
+    const [editCategory, setEditCategory] = useState("Otros");
     const [actionError, setActionError] = useState<string | null>(null);
 
     /** Ejecuta una escritura contra la API, muestra su error si falla y refresca los datos. */
@@ -68,6 +100,13 @@ export function ShoppingPage() {
         }
     }
 
+    function handleNameChange(value: string) {
+        setNewName(value);
+        if (categoryTouched) return;
+        const match = suggestions.find((s) => s.name.toLowerCase() === value.trim().toLowerCase());
+        if (match?.category) setNewCategory(match.category);
+    }
+
     function handleAdd(e: FormEvent) {
         e.preventDefault();
         const name = newName.trim();
@@ -76,7 +115,38 @@ export function ShoppingPage() {
             await api.addShoppingItem({ name, quantity: Math.max(1, newQuantity), category: newCategory || null });
             setNewName("");
             setNewQuantity(1);
+            setCategoryTouched(false);
         });
+    }
+
+    /** Borra [removed] con [action] y, si salió bien, ofrece deshacerlo. */
+    function deleteWithUndo(message: string, removed: ShoppingItem[], action: () => Promise<unknown>) {
+        void run(async () => {
+            await action();
+            setUndo({ message, items: removed });
+        });
+    }
+
+    function handleUndo() {
+        if (!undo) return;
+        const { items: restored } = undo;
+        setUndo(null);
+        void run(() => api.restoreShoppingItems(restored));
+    }
+
+    function startEdit(item: { id: number; name: string; category: string | null }) {
+        setEditingId(item.id);
+        setEditName(item.name);
+        setEditCategory(item.category ?? "Otros");
+    }
+
+    function handleSaveEdit(e: FormEvent) {
+        e.preventDefault();
+        const name = editName.trim();
+        if (editingId === null || !name) return;
+        const id = editingId;
+        setEditingId(null);
+        void run(() => api.patchShoppingItem(id, { name, category: editCategory }));
     }
 
     function handleSaveTemplate() {
@@ -84,7 +154,7 @@ export function ShoppingPage() {
         if (current.length === 0) return;
         const name = window.prompt("Nombre de la plantilla (se guardará con la lista actual):")?.trim();
         if (!name) return;
-        void run(() => api.createShoppingTemplate(name, current.map((i) => ({ name: i.name, quantity: i.quantity }))));
+        void run(() => api.createShoppingTemplate(name, current.map((i) => ({ name: i.name, quantity: i.quantity, category: i.category }))));
     }
 
     function handleDeleteTemplate(id: number, name: string) {
@@ -122,6 +192,14 @@ export function ShoppingPage() {
 
             {items.error && <Alert>{items.error}</Alert>}
             {actionError && <Alert>{actionError}</Alert>}
+            {undo && (
+                <div className="undo-bar" role="status">
+                    <span>{undo.message}</span>
+                    <button className="btn btn-sm btn-primary" onClick={handleUndo} disabled={busy}>
+                        Deshacer
+                    </button>
+                </div>
+            )}
 
             <form className="card form-stack" onSubmit={handleAdd}>
                 <div className="form-row" style={{ flexWrap: "nowrap" }}>
@@ -131,8 +209,15 @@ export function ShoppingPage() {
                         aria-label="Nombre del artículo"
                         enterKeyHint="done"
                         value={newName}
-                        onChange={(e) => setNewName(e.target.value)}
+                        onChange={(e) => handleNameChange(e.target.value)}
+                        list="shopping-suggestions"
+                        autoComplete="off"
                     />
+                    <datalist id="shopping-suggestions">
+                        {(newName.trim() ? suggestions : []).map((s) => (
+                            <option key={s.name} value={s.name} label={s.category ?? undefined} />
+                        ))}
+                    </datalist>
                     <div className="stepper" role="group" aria-label="Cantidad">
                         <button type="button" onClick={() => setNewQuantity((q) => Math.max(1, q - 1))} disabled={newQuantity <= 1} aria-label="Menos">
                             <Icon name="minus" size={16} />
@@ -151,7 +236,10 @@ export function ShoppingPage() {
                             role="radio"
                             aria-checked={newCategory === c}
                             className={`chip${newCategory === c ? " active" : ""}`}
-                            onClick={() => setNewCategory(c)}
+                            onClick={() => {
+                                setNewCategory(c);
+                                setCategoryTouched(true);
+                            }}
                         >
                             {c}
                         </button>
@@ -182,7 +270,14 @@ export function ShoppingPage() {
                                     </button>
                                     <button
                                         className="btn btn-sm btn-danger"
-                                        onClick={() => void run(() => api.clearCheckedShoppingItems())}
+                                        onClick={() => {
+                                            const checked = all.filter((i) => i.checked);
+                                            deleteWithUndo(
+                                                checked.length === 1 ? "1 artículo quitado" : `${checked.length} artículos quitados`,
+                                                checked,
+                                                () => api.clearCheckedShoppingItems(),
+                                            );
+                                        }}
                                         disabled={busy || checkedCount === 0}
                                     >
                                         <Icon name="trash" size={15} />
@@ -198,7 +293,46 @@ export function ShoppingPage() {
                         {grouped.map(([category, categoryItems]) => (
                             <div key={category}>
                                 <div className="group-label">{category}</div>
-                                {categoryItems.map((item) => (
+                                {categoryItems.map((item) =>
+                                    editingId === item.id ? (
+                                        <form key={item.id} className="list-row" onSubmit={handleSaveEdit}>
+                                            <input
+                                                className="input"
+                                                aria-label={`Nombre de ${item.name}`}
+                                                value={editName}
+                                                onChange={(e) => setEditName(e.target.value)}
+                                                autoFocus
+                                            />
+                                            <select
+                                                className="select select-inline"
+                                                aria-label="Categoría"
+                                                value={editCategory}
+                                                onChange={(e) => setEditCategory(e.target.value)}
+                                            >
+                                                {CATEGORY_ORDER.map((c) => (
+                                                    <option key={c} value={c}>{c}</option>
+                                                ))}
+                                            </select>
+                                            <button
+                                                type="submit"
+                                                className="btn btn-ghost btn-sm icon-btn"
+                                                disabled={busy || !editName.trim()}
+                                                aria-label="Guardar cambios"
+                                                title="Guardar"
+                                            >
+                                                <Icon name="check" size={17} />
+                                            </button>
+                                            <button
+                                                type="button"
+                                                className="btn btn-ghost btn-sm icon-btn"
+                                                onClick={() => setEditingId(null)}
+                                                aria-label="Cancelar"
+                                                title="Cancelar"
+                                            >
+                                                <Icon name="close" size={17} />
+                                            </button>
+                                        </form>
+                                    ) : (
                                     <div key={item.id} className={`list-row${item.checked ? " is-checked" : ""}`}>
                                         <input
                                             type="checkbox"
@@ -231,14 +365,24 @@ export function ShoppingPage() {
                                         <button
                                             className="btn btn-ghost btn-sm icon-btn"
                                             disabled={busy}
-                                            onClick={() => void run(() => api.deleteShoppingItem(item.id))}
+                                            onClick={() => startEdit(item)}
+                                            aria-label={`Editar ${item.name}`}
+                                            title="Editar"
+                                        >
+                                            <Icon name="edit" size={17} />
+                                        </button>
+                                        <button
+                                            className="btn btn-ghost btn-sm icon-btn"
+                                            disabled={busy}
+                                            onClick={() => deleteWithUndo(`«${item.name}» eliminado`, [item], () => api.deleteShoppingItem(item.id))}
                                             aria-label={`Eliminar ${item.name}`}
                                             title="Eliminar"
                                         >
                                             <Icon name="trash" size={17} />
                                         </button>
                                     </div>
-                                ))}
+                                    ),
+                                )}
                             </div>
                         ))}
                     </>

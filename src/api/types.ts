@@ -35,6 +35,12 @@ export interface ShoppingItem {
     category: string | null;
 }
 
+export interface ShoppingSuggestion {
+    name: string;
+    category: string | null;
+    uses: number;
+}
+
 export interface ShoppingTemplate {
     id: number;
     name: string;
@@ -45,6 +51,7 @@ export interface ShoppingTemplate {
 export interface ShoppingTemplateItem {
     name: string;
     quantity: number;
+    category: string | null;
 }
 
 export interface ShoppingTemplateDetail {
@@ -54,6 +61,12 @@ export interface ShoppingTemplateDetail {
     items: ShoppingTemplateItem[];
 }
 
+export interface PlaceCandidate {
+    displayName: string;
+    latitude: number;
+    longitude: number;
+}
+
 export interface Destination {
     id: number;
     name: string;
@@ -61,6 +74,9 @@ export interface Destination {
     latitude: number;
     longitude: number;
     createdAt: number;
+    note: string | null;
+    category: string | null;
+    visited: boolean;
 }
 
 export interface AuthResponse {

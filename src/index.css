@@ -1553,3 +1553,29 @@ a {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Aviso "Deshacer" tras borrar (lista de la compra) */
+.undo-bar {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  max-width: calc(100vw - 2 * var(--page-gutter));
+  padding: 10px 12px 10px 16px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-alt);
+  color: var(--color-text);
+  font-size: 14px;
+  box-shadow: var(--shadow-pop);
+  animation: fade-in 0.2s ease-out;
+}
+
+/* Marcador de Leaflet de un destino visitado: el icono azul por defecto, teñido de verde */
+.marker-visited {
+  filter: hue-rotate(270deg) saturate(1.2);
+}
