@@ -8,7 +8,7 @@ interface PollingState<T> {
     refresh: () => void;
 }
 
-/** Carga datos de solo lectura, con refresco manual y polling ligero mientras la pestaña esté visible. */
+/** Carga datos, con refresco manual y polling ligero mientras la pestaña esté visible. */
 export function usePolling<T>(fetcher: () => Promise<T>, intervalMs = 30_000): PollingState<T> {
     const [data, setData] = useState<T | null>(null);
     const [error, setError] = useState<string | null>(null);

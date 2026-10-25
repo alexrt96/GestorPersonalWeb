@@ -4,14 +4,16 @@ import { getStoredCredentials, clearCredentials } from "./api/config";
 import { DevicesPage } from "./pages/DevicesPage";
 import { CarLogsPage } from "./pages/CarLogsPage";
 import { ShoppingPage } from "./pages/ShoppingPage";
+import { DestinationsPage } from "./pages/DestinationsPage";
 import { WoffuManagerPage } from "./pages/WoffuManagerPage";
 
-type Tab = "devices" | "carlogs" | "shopping" | "woffu";
+type Tab = "devices" | "carlogs" | "shopping" | "destinations" | "woffu";
 
 const TABS: { id: Tab; label: string }[] = [
     { id: "devices", label: "Dispositivos" },
     { id: "carlogs", label: "Actividad BT" },
     { id: "shopping", label: "Lista de la compra" },
+    { id: "destinations", label: "Destinos" },
     { id: "woffu", label: "WoffuManager" },
 ];
 
@@ -71,6 +73,7 @@ export default function App() {
                 {tab === "devices" && <DevicesPage />}
                 {tab === "carlogs" && <CarLogsPage />}
                 {tab === "shopping" && <ShoppingPage />}
+                {tab === "destinations" && <DestinationsPage />}
                 {tab === "woffu" && <WoffuManagerPage />}
             </main>
         </div>

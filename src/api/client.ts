@@ -2,11 +2,13 @@ import { getStoredCredentials } from "./config";
 import type {
     BlacklistEntry,
     CarLog,
+    Destination,
     Device,
     DiaryMonth,
     ShoppingItem,
     ShoppingTemplate,
     ShoppingTemplateDetail,
+    ShoppingTemplateItem,
     WoffuLog,
     WoffuSettings,
     WorkdaySlotsInfo,
@@ -58,6 +60,18 @@ export async function checkHealth(baseUrl: string): Promise<boolean> {
     }
 }
 
+/**
+ * Despierta GestorPersonalApi (Render free duerme el servicio) y la BD (Neon) nada más abrir
+ * el visor. Fire-and-forget: /api/health es público y el resultado se ignora.
+ */
+export function wakeUpApi(): void {
+    const creds = getStoredCredentials();
+    if (!creds) return;
+    fetch(`${creds.baseUrl}/api/health`).catch(() => {
+        // da igual si falla o tarda: solo buscamos que el servidor arranque
+    });
+}
+
 export const api = {
     devices: () => request<Device[]>("/api/devices"),
     blacklist: () => request<BlacklistEntry[]>("/api/blacklist"),
@@ -72,6 +86,23 @@ export const api = {
     shoppingItems: () => request<ShoppingItem[]>("/api/shopping/items"),
     shoppingTemplates: () => request<ShoppingTemplate[]>("/api/shopping/templates"),
     shoppingTemplateDetail: (id: number) => request<ShoppingTemplateDetail>(`/api/shopping/templates/${id}`),
+    addShoppingItem: (item: { name: string; quantity: number; category: string | null }) =>
+        request<ShoppingItem>("/api/shopping/items", { method: "POST", body: JSON.stringify(item) }),
+    patchShoppingItem: (id: number, patch: { checked?: boolean; quantity?: number }) =>
+        request<void>(`/api/shopping/items/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
+    deleteShoppingItem: (id: number) => request<void>(`/api/shopping/items/${id}`, { method: "DELETE" }),
+    clearCheckedShoppingItems: () => request<void>("/api/shopping/items/clear-checked", { method: "POST" }),
+    createShoppingTemplate: (name: string, items: ShoppingTemplateItem[]) =>
+        request<ShoppingTemplate>("/api/shopping/templates", { method: "POST", body: JSON.stringify({ name, items }) }),
+    deleteShoppingTemplate: (id: number) => request<void>(`/api/shopping/templates/${id}`, { method: "DELETE" }),
+    applyShoppingTemplate: (id: number) =>
+        request<{ appliedItems: number }>(`/api/shopping/templates/${id}/apply`, { method: "POST" }),
+
+    destinations: () => request<Destination[]>("/api/destinations"),
+    addDestination: (name: string) =>
+        request<Destination>("/api/destinations", { method: "POST", body: JSON.stringify({ name }) }),
+    deleteDestination: (id: number) => request<void>(`/api/destinations/${id}`, { method: "DELETE" }),
+
     woffuLogs: (limit = 200) => request<WoffuLog[]>(`/api/woffu/logs?limit=${limit}`),
 
     woffuSettings: () => request<WoffuSettings>("/api/woffu/settings"),
