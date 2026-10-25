@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { navigate, useRoute } from "../hooks/useRoute";
 import { WoffuDiaryTab } from "./WoffuDiaryTab";
 import { WoffuSettingsTab } from "./WoffuSettingsTab";
 import { WoffuLogsPage } from "./WoffuLogsPage";
@@ -12,13 +12,15 @@ const SUB_TABS: { id: SubTab; label: string }[] = [
 ];
 
 export function WoffuManagerPage() {
-    const [tab, setTab] = useState<SubTab>("diary");
+    // Rutas: `#/woffu/diary` (por defecto), `#/woffu/settings` y `#/woffu/logs`.
+    const route = useRoute();
+    const tab: SubTab = SUB_TABS.find((t) => t.id === route[1])?.id ?? "diary";
 
     return (
         <div className="page">
             <div className="segmented" role="tablist" aria-label="WoffuManager">
                 {SUB_TABS.map((t) => (
-                    <button key={t.id} role="tab" aria-selected={tab === t.id} className={tab === t.id ? "active" : ""} onClick={() => setTab(t.id)}>
+                    <button key={t.id} role="tab" aria-selected={tab === t.id} className={tab === t.id ? "active" : ""} onClick={() => navigate(`/woffu/${t.id}`)}>
                         {t.label}
                     </button>
                 ))}

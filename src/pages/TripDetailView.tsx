@@ -2,11 +2,13 @@ import { useState } from "react";
 import type { FormEvent } from "react";
 import { api, ApiError } from "../api/client";
 import { usePolling } from "../hooks/usePolling";
-import type { TripDetail, TripStop, TripStopInput } from "../api/types";
+import type { PlaceCandidate, TripDetail, TripStop, TripStopInput } from "../api/types";
 import { Alert, EmptyState, PageHeader, RefreshButton, SkeletonRows } from "../components/ui";
 import { Icon } from "../components/Icon";
 import { daysBetween, formatDay, formatRange } from "../components/shared";
 import { TripForm } from "./TripForm";
+import { TripStopView } from "./TripStopView";
+import { navigate } from "../hooks/useRoute";
 
 /** Formulario común de alta y edición de una parada del itinerario. */
 function StopForm({
@@ -43,8 +45,8 @@ function StopForm({
                     type="date"
                     className="input"
                     aria-label="Día"
-                    min={minDay}
-                    max={maxDay}
+                    min={minDay < value.day ? minDay : value.day}
+                    max={maxDay > value.day ? maxDay : value.day}
                     value={value.day}
                     onChange={(e) => set("day", e.target.value)}
                 />
@@ -106,7 +108,7 @@ function groupByDay(stops: TripStop[]): { day: string; stops: TripStop[] }[] {
     return groups;
 }
 
-export function TripDetailView({ tripId, onBack }: { tripId: number; onBack: () => void }) {
+export function TripDetailView({ tripId, stopId, onBack }: { tripId: number; stopId: number | null; onBack: () => void }) {
     const { data, error, loading, refresh } = usePolling(() => api.trip(tripId), 30_000);
     const [busy, setBusy] = useState(false);
     const [actionError, setActionError] = useState<string | null>(null);
@@ -114,6 +116,8 @@ export function TripDetailView({ tripId, onBack }: { tripId: number; onBack: () 
     const [editingStopId, setEditingStopId] = useState<number | null>(null);
     const [stopFormKey, setStopFormKey] = useState(0);
     const [packingName, setPackingName] = useState("");
+    // Varios lugares encajan con el texto escrito: se elige cuál guardar (o guardar la parada sin mapa).
+    const [choices, setChoices] = useState<{ previous: TripStop | null; input: TripStopInput; places: PlaceCandidate[] } | null>(null);
 
     async function run(action: () => Promise<unknown>) {
         setBusy(true);
@@ -146,6 +150,47 @@ export function TripDetailView({ tripId, onBack }: { tripId: number; onBack: () 
     }
 
     const trip: TripDetail = data;
+
+    /**
+     * Guarda una parada nueva (`previous` null) o la edición de `previous`. Si el lugar es nuevo o ha cambiado se busca
+     * en el mapa: sin resultados se guarda sin ubicación, con uno se usa ese y con varios se abre la elección.
+     * Un fallo al buscar no impide guardar la parada.
+     */
+    async function saveStop(previous: TripStop | null, input: TripStopInput, chosen?: PlaceCandidate | null) {
+        const place = input.place.trim();
+        const persist = (location: PlaceCandidate | "clear" | undefined) =>
+            previous
+                ? api.updateTripStop(trip.id, previous.id, input, location)
+                : api.addTripStop(trip.id, input, location === "clear" ? undefined : location);
+
+        if (chosen !== undefined) return persist(chosen ?? (previous ? "clear" : undefined));
+        if (place === "") return persist(previous ? "clear" : undefined);
+        if (previous && (previous.place ?? "") === place) return persist(undefined);
+
+        let places: PlaceCandidate[] = [];
+        try {
+            places = await api.searchTripPlaces(place);
+        } catch {
+            // sin servicio de búsqueda la parada se guarda igualmente, sin ubicación
+        }
+        if (places.length === 0) return persist(previous ? "clear" : undefined);
+        if (places.length === 1) return persist(places[0]);
+        setChoices({ previous, input, places });
+    }
+
+    // La parada abierta viene de la URL (`#/trips/2/stops/17`); anterior/siguiente sustituyen la entrada del historial,
+    // así "atrás" vuelve al viaje y no recorre todas las paradas vistas.
+    if (stopId !== null) {
+        return (
+            <TripStopView
+                trip={trip}
+                stop={trip.stops.find((s) => s.id === stopId)}
+                onBack={() => navigate(`/trips/${trip.id}`)}
+                onOpen={(id) => navigate(`/trips/${trip.id}/stops/${id}`, true)}
+            />
+        );
+    }
+
     const totalDays = daysBetween(trip.startDate, trip.endDate) + 1;
     const checked = trip.packing.filter((p) => p.checked).length;
 
@@ -215,10 +260,54 @@ export function TripDetailView({ tripId, onBack }: { tripId: number; onBack: () 
                         maxDay={trip.endDate}
                         onSubmit={(input) => {
                             setStopFormKey((k) => k + 1);
-                            void run(() => api.addTripStop(trip.id, input));
+                            void run(() => saveStop(null, input));
                         }}
                     />
                 </div>
+                {choices && (
+                    <div className="card flush">
+                        <div className="group-label">¿Cuál es «{choices.input.place}»?</div>
+                        {choices.places.map((p, i) => (
+                            <div key={i} className="list-row row-wrap">
+                                <span className="row-icon">
+                                    <Icon name="pin" />
+                                </span>
+                                <div className="row-main">
+                                    <div className="row-sub">{p.displayName}</div>
+                                </div>
+                                <div className="row-actions">
+                                    <button
+                                        className="btn btn-sm btn-primary"
+                                        disabled={busy}
+                                        onClick={() => {
+                                            const c = choices;
+                                            setChoices(null);
+                                            void run(() => saveStop(c.previous, c.input, p));
+                                        }}
+                                    >
+                                        Elegir
+                                    </button>
+                                </div>
+                            </div>
+                        ))}
+                        <div className="list-row">
+                            <button
+                                className="btn btn-sm"
+                                disabled={busy}
+                                onClick={() => {
+                                    const c = choices;
+                                    setChoices(null);
+                                    void run(() => saveStop(c.previous, c.input, null));
+                                }}
+                            >
+                                Guardar sin mapa
+                            </button>
+                            <button className="btn btn-sm btn-ghost" disabled={busy} onClick={() => setChoices(null)}>
+                                Cancelar
+                            </button>
+                        </div>
+                    </div>
+                )}
                 <div className="card flush">
                     {trip.stops.length === 0 ? (
                         <EmptyState icon="pin" title="Sin itinerario" text="Añade paradas o actividades con su día y hora." />
@@ -238,18 +327,25 @@ export function TripDetailView({ tripId, onBack }: { tripId: number; onBack: () 
                                                 onCancel={() => setEditingStopId(null)}
                                                 onSubmit={(input) => {
                                                     setEditingStopId(null);
-                                                    void run(() => api.updateTripStop(trip.id, s.id, input));
+                                                    void run(() => saveStop(s, input));
                                                 }}
                                             />
                                         </div>
                                     ) : (
-                                        <div key={s.id} className="list-row row-wrap">
+                                        <div key={s.id} className="list-row clickable row-wrap" onClick={() => navigate(`/trips/${trip.id}/stops/${s.id}`)}>
                                             <span className="badge badge-accent">{s.time ?? "—"}</span>
                                             <div className="row-main">
-                                                <div className="row-title">{s.title}</div>
+                                                <div className="row-title">
+                                                    {s.title}
+                                                    {typeof s.latitude === "number" && typeof s.longitude === "number" && (
+                                                        <span className="stop-pin" title="Con ubicación en el mapa" aria-label="Con ubicación en el mapa">
+                                                            <Icon name="pin" size={14} />
+                                                        </span>
+                                                    )}
+                                                </div>
                                                 {(s.place || s.note) && <div className="row-sub">{[s.place, s.note].filter(Boolean).join(" · ")}</div>}
                                             </div>
-                                            <div className="row-actions">
+                                            <div className="row-actions" onClick={(e) => e.stopPropagation()}>
                                                 <button
                                                     className="btn btn-ghost btn-sm icon-btn"
                                                     disabled={busy}

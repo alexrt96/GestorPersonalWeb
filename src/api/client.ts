@@ -187,11 +187,26 @@ export const api = {
     updateTrip: (id: number, patch: Partial<TripInput>) =>
         request<Trip>(`/api/trips/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
     deleteTrip: (id: number) => request<void>(`/api/trips/${id}`, { method: "DELETE" }),
-    addTripStop: (tripId: number, input: TripStopInput) =>
-        request<TripStop>(`/api/trips/${tripId}/stops`, { method: "POST", body: JSON.stringify(input) }),
-    /** Hora, lugar o nota "" los borra. */
-    updateTripStop: (tripId: number, stopId: number, patch: Partial<TripStopInput>) =>
-        request<TripStop>(`/api/trips/${tripId}/stops/${stopId}`, { method: "PATCH", body: JSON.stringify(patch) }),
+    /** Lugares que encajan con `q` (Nominatim vía la API), para elegir dónde situar una parada en el mapa. */
+    searchTripPlaces: (q: string) => request<PlaceCandidate[]>(`/api/trips/places/search?q=${encodeURIComponent(q)}`),
+    /** Con `place` la parada queda situada en el mapa; sin él, no tiene ubicación. */
+    addTripStop: (tripId: number, input: TripStopInput, place?: PlaceCandidate) =>
+        request<TripStop>(`/api/trips/${tripId}/stops`, {
+            method: "POST",
+            body: JSON.stringify(place ? { ...input, latitude: place.latitude, longitude: place.longitude } : input),
+        }),
+    /** Hora, lugar o nota "" los borra. `location`: un lugar la fija, "clear" la quita y sin él no se toca. */
+    updateTripStop: (tripId: number, stopId: number, patch: Partial<TripStopInput>, location?: PlaceCandidate | "clear") =>
+        request<TripStop>(`/api/trips/${tripId}/stops/${stopId}`, {
+            method: "PATCH",
+            body: JSON.stringify(
+                location === "clear"
+                    ? { ...patch, clearLocation: true }
+                    : location
+                      ? { ...patch, latitude: location.latitude, longitude: location.longitude }
+                      : patch,
+            ),
+        }),
     deleteTripStop: (tripId: number, stopId: number) =>
         request<void>(`/api/trips/${tripId}/stops/${stopId}`, { method: "DELETE" }),
     addPackingItem: (tripId: number, name: string) =>

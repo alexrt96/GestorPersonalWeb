@@ -7,6 +7,7 @@ import type { ModuleSettings } from "./api/types";
 import { MODULES, MODULE_TABS, SETTINGS_TAB } from "./modules";
 import type { Tab } from "./modules";
 import { Icon } from "./components/Icon";
+import { navigate, useRoute } from "./hooks/useRoute";
 import { DevicesPage } from "./pages/DevicesPage";
 import { CarLogsPage } from "./pages/CarLogsPage";
 import { ShoppingPage } from "./pages/ShoppingPage";
@@ -35,11 +36,23 @@ function storeTab(tab: Tab): void {
     }
 }
 
+/** Pestañas visibles según los módulos que el usuario tiene activados (más Ajustes). */
+function visibleTabsFor(modules: ModuleSettings) {
+    return [...MODULES.filter((m) => modules[m.id] ?? true).flatMap((m) => MODULE_TABS[m.id]), SETTINGS_TAB];
+}
+
+/** Pestaña a la que ir cuando la URL no indica una válida: la última usada si sigue visible, si no la primera. */
+function fallbackTab(visible: { id: Tab }[]): Tab {
+    const stored = readStoredTab();
+    return stored !== null && visible.some((t) => t.id === stored) ? stored : visible[0].id;
+}
+
 export default function App() {
     const [ready, setReady] = useState(() => getStoredCredentials() !== null);
     const [username, setUsername] = useState<string | null>(() => getStoredSession()?.username ?? null);
     const [modules, setModules] = useState<ModuleSettings | null>(null);
-    const [tab, setTab] = useState<Tab | null>(readStoredTab);
+    const route = useRoute();
+    const urlTab = route[0];
     const [menuOpen, setMenuOpen] = useState(false);
     const headerRef = useRef<HTMLElement>(null);
 
@@ -53,6 +66,20 @@ export default function App() {
         setUnauthorizedHandler(signOutLocally);
         return () => setUnauthorizedHandler(null);
     }, [signOutLocally]);
+
+    // La URL manda: sin pestaña válida (primera visita, enlace viejo, módulo desactivado) se corrige sustituyendo la
+    // entrada actual del historial, para que "atrás" no vuelva a una dirección que se corrige sola.
+    useEffect(() => {
+        if (!username || modules === null) return;
+        const visible = visibleTabsFor(modules);
+        if (!visible.some((t) => t.id === urlTab)) navigate(`/${fallbackTab(visible)}`, true);
+    }, [username, modules, urlTab]);
+
+    // Cada pantalla nueva empieza arriba (cambiar el hash no desplaza la página por sí solo).
+    const routeKey = route.join("/");
+    useEffect(() => {
+        window.scrollTo(0, 0);
+    }, [routeKey]);
 
     // Menú desplegable (móvil): se cierra con Escape o al pulsar fuera de la cabecera.
     useEffect(() => {
@@ -107,9 +134,9 @@ export default function App() {
         );
     }
 
-    const visibleTabs = [...MODULES.filter((m) => modules[m.id] ?? true).flatMap((m) => MODULE_TABS[m.id]), SETTINGS_TAB];
-    // Si aún no se eligió pestaña, o la elegida pertenece a un módulo recién desactivado, se usa la primera visible.
-    const activeTab = tab !== null && visibleTabs.some((t) => t.id === tab) ? tab : visibleTabs[0].id;
+    const visibleTabs = visibleTabsFor(modules);
+    // Si la URL no trae una pestaña válida se usa la de reserva (el efecto de arriba corrige la dirección).
+    const activeTab: Tab = visibleTabs.some((t) => t.id === urlTab) ? (urlTab as Tab) : fallbackTab(visibleTabs);
 
     async function handleLogout() {
         try {
@@ -149,8 +176,8 @@ export default function App() {
                                     className={`app-tab${activeTab === t.id ? " active" : ""}`}
                                     aria-current={activeTab === t.id ? "page" : undefined}
                                     onClick={() => {
-                                        setTab(t.id);
                                         storeTab(t.id);
+                                        navigate(`/${t.id}`);
                                         setMenuOpen(false);
                                     }}
                                 >

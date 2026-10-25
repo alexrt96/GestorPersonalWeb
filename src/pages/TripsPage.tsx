@@ -5,6 +5,7 @@ import type { Trip, TripInput } from "../api/types";
 import { Alert, EmptyState, PageHeader, RefreshButton, SkeletonRows } from "../components/ui";
 import { Icon } from "../components/Icon";
 import { daysFromToday, formatRange, todayIso } from "../components/shared";
+import { navigate, routeId, useRoute } from "../hooks/useRoute";
 import { TripDetailView } from "./TripDetailView";
 import { TripForm } from "./TripForm";
 
@@ -20,12 +21,15 @@ function tripState(t: Trip): "ongoing" | "upcoming" | "past" {
     return "ongoing";
 }
 
+/** Rutas: `#/trips` (lista), `#/trips/2` (viaje) y `#/trips/2/stops/17` (parada). */
 export function TripsPage() {
-    const [openId, setOpenId] = useState<number | null>(null);
-    if (openId !== null) {
-        return <TripDetailView key={openId} tripId={openId} onBack={() => setOpenId(null)} />;
+    const route = useRoute();
+    const tripId = routeId(route[1]);
+    const stopId = route[2] === "stops" ? routeId(route[3]) : null;
+    if (tripId !== null) {
+        return <TripDetailView key={tripId} tripId={tripId} stopId={stopId} onBack={() => navigate("/trips")} />;
     }
-    return <TripsList onOpen={setOpenId} />;
+    return <TripsList onOpen={(id) => navigate(`/trips/${id}`)} />;
 }
 
 function TripsList({ onOpen }: { onOpen: (id: number) => void }) {
