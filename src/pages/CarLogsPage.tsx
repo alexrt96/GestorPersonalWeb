@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { api } from "../api/client";
 import { usePolling } from "../hooks/usePolling";
-import { formatDate, levelColor, shared } from "../components/shared";
+import { formatDate, levelBadge } from "../components/shared";
+import { Alert, EmptyState, PageHeader, RefreshButton, SkeletonRows } from "../components/ui";
 
 const LEVELS = ["", "DEBUG", "INFO", "WARNING", "ERROR"];
 
@@ -10,49 +11,63 @@ export function CarLogsPage() {
     const { data: logs, error, loading, refresh } = usePolling(() => api.carLogs({ level: level || undefined, limit: 300 }), 20_000);
 
     return (
-        <div style={shared.page}>
-            <div style={shared.headerRow}>
-                <h1 style={shared.pageTitle}>Diario de actividad — BluetoothLocator</h1>
-                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                    <select style={shared.select} value={level} onChange={(e) => setLevel(e.target.value)}>
-                        {LEVELS.map((l) => (
-                            <option key={l} value={l}>
-                                {l || "Todos los niveles"}
-                            </option>
-                        ))}
-                    </select>
-                    <button style={shared.refreshButton} onClick={refresh} disabled={loading}>
-                        {loading ? "Actualizando…" : "Actualizar"}
-                    </button>
-                </div>
-            </div>
+        <div className="page">
+            <PageHeader
+                title="Actividad"
+                subtitle="Diario de BluetoothLocator"
+                actions={
+                    <>
+                        <select className="select select-inline" value={level} onChange={(e) => setLevel(e.target.value)} aria-label="Filtrar por nivel">
+                            {LEVELS.map((l) => (
+                                <option key={l} value={l}>
+                                    {l || "Todos los niveles"}
+                                </option>
+                            ))}
+                        </select>
+                        <RefreshButton onClick={refresh} loading={loading} />
+                    </>
+                }
+            />
 
-            {error && <div style={shared.errorBox}>{error}</div>}
+            {error && <Alert>{error}</Alert>}
 
-            <div style={shared.card}>
-                <table style={shared.table}>
-                    <thead>
-                        <tr>
-                            <th style={shared.th}>Fecha</th>
-                            <th style={shared.th}>Nivel</th>
-                            <th style={shared.th}>Origen</th>
-                            <th style={shared.th}>Mensaje</th>
-                            <th style={shared.th}>Dispositivo</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {(logs ?? []).map((l) => (
-                            <tr key={l.id}>
-                                <td style={shared.td}>{formatDate(l.timestamp)}</td>
-                                <td style={{ ...shared.td, color: levelColor[l.level] ?? "var(--color-text)" }}>{l.level}</td>
-                                <td style={shared.td}>{l.tag}</td>
-                                <td style={shared.td}>{l.message}</td>
-                                <td style={shared.td}>{l.deviceId ?? "—"}</td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-                {logs !== null && logs.length === 0 && <div style={shared.empty}>Sin entradas de actividad.</div>}
+            <div className="card flush">
+                {logs === null && loading ? (
+                    <SkeletonRows rows={5} />
+                ) : logs !== null && logs.length === 0 ? (
+                    <EmptyState icon="activity" title="Sin actividad" text="Cuando un dispositivo se conecte o desconecte, quedará registrado aquí." />
+                ) : (
+                    <div className="table-wrap">
+                        <table className="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Fecha</th>
+                                    <th>Nivel</th>
+                                    <th>Origen</th>
+                                    <th>Mensaje</th>
+                                    <th>Dispositivo</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {(logs ?? []).map((l) => (
+                                    <tr key={l.id}>
+                                        <td data-label="Fecha" className="cell-nowrap cell-muted">
+                                            {formatDate(l.timestamp)}
+                                        </td>
+                                        <td data-label="Nivel">
+                                            <span className={`badge ${levelBadge[l.level] ?? ""}`}>{l.level}</span>
+                                        </td>
+                                        <td data-label="Origen">{l.tag}</td>
+                                        <td data-label="Mensaje">{l.message}</td>
+                                        <td data-label="Dispositivo" className="cell-muted">
+                                            {l.deviceId ?? "—"}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
             </div>
         </div>
     );

@@ -8,7 +8,8 @@ import "leaflet/dist/leaflet.css";
 import { api, ApiError } from "../api/client";
 import { usePolling } from "../hooks/usePolling";
 import type { Destination } from "../api/types";
-import { formatDate, shared } from "../components/shared";
+import { Alert, EmptyState, PageHeader, RefreshButton, SkeletonRows } from "../components/ui";
+import { Icon } from "../components/Icon";
 
 const defaultIcon = L.icon({
     iconUrl: markerIcon,
@@ -64,33 +65,37 @@ export function DestinationsPage() {
     const visible = focused ? [focused] : destinations;
 
     return (
-        <div style={shared.page}>
-            <div style={shared.headerRow}>
-                <h1 style={shared.pageTitle}>Destinos</h1>
-                <button style={shared.refreshButton} onClick={refresh} disabled={loading || busy}>
-                    {loading ? "Actualizando…" : "Actualizar"}
-                </button>
-            </div>
+        <div className="page">
+            <PageHeader
+                title="Destinos"
+                subtitle={data ? `${destinations.length} lugar${destinations.length === 1 ? "" : "es"} · compartidos con todos los usuarios` : "Compartidos con todos los usuarios"}
+                actions={<RefreshButton onClick={refresh} loading={loading} disabled={busy} />}
+            />
 
-            {error && <div style={shared.errorBox}>{error}</div>}
-            {actionError && <div style={shared.errorBox}>{actionError}</div>}
+            {error && <Alert>{error}</Alert>}
+            {actionError && <Alert>{actionError}</Alert>}
 
-            <div style={shared.card}>
-                <form onSubmit={handleAdd} style={{ display: "flex", gap: 8 }}>
-                    <input
-                        style={{ ...shared.input, flex: 1 }}
-                        placeholder="Nombre del destino (ej. Torre Eiffel, Calle Mayor 1 Madrid…)"
-                        value={name}
-                        onChange={(e) => setName(e.target.value)}
-                    />
-                    <button type="submit" style={shared.accentButton} disabled={busy || !name.trim()}>
+            <form className="card" onSubmit={handleAdd}>
+                <div className="form-row" style={{ flexWrap: "nowrap" }}>
+                    <div className="input-icon">
+                        <Icon name="search" size={17} />
+                        <input
+                            className="input"
+                            placeholder="Busca un lugar…"
+                            aria-label="Nombre del destino"
+                            enterKeyHint="search"
+                            value={name}
+                            onChange={(e) => setName(e.target.value)}
+                        />
+                    </div>
+                    <button type="submit" className="btn btn-primary" disabled={busy || !name.trim()}>
                         {busy ? "Buscando…" : "Añadir"}
                     </button>
-                </form>
-            </div>
+                </div>
+            </form>
 
-            <div style={{ ...shared.card, padding: 0, overflow: "hidden", height: "min(420px, 60vh)" }}>
-                <MapContainer center={[40.4168, -3.7038]} zoom={5} style={{ height: "100%", width: "100%" }}>
+            <div className="card map-card">
+                <MapContainer center={[40.4168, -3.7038]} zoom={5} scrollWheelZoom={false}>
                     <TileLayer
                         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
                         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -108,43 +113,48 @@ export function DestinationsPage() {
                 </MapContainer>
             </div>
 
-            <div style={shared.card}>
-                <table style={shared.table}>
-                    <thead>
-                        <tr>
-                            <th style={shared.th}>Nombre</th>
-                            <th style={shared.th}>Ubicación</th>
-                            <th style={shared.th}>Añadido</th>
-                            <th style={shared.th}></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {destinations.map((d) => (
-                            <tr key={d.id}>
-                                <td style={shared.td}>{d.name}</td>
-                                <td style={{ ...shared.td, color: "var(--color-text-secondary)" }}>{d.displayName}</td>
-                                <td style={shared.td}>{formatDate(d.createdAt)}</td>
-                                <td style={{ ...shared.td, whiteSpace: "nowrap" }}>
-                                    <button style={shared.smallButton} onClick={() => setFocused(focused?.id === d.id ? null : d)}>
-                                        {focused?.id === d.id ? "Ver todos" : "Ver en mapa"}
-                                    </button>{" "}
-                                    <button
-                                        style={{ ...shared.smallButton, color: "var(--color-danger)" }}
-                                        disabled={busy}
-                                        onClick={() => {
-                                            if (!window.confirm(`¿Eliminar el destino "${d.name}"?`)) return;
-                                            if (focused?.id === d.id) setFocused(null);
-                                            void run(() => api.deleteDestination(d.id));
-                                        }}
-                                    >
-                                        Eliminar
-                                    </button>
-                                </td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-                {data !== null && destinations.length === 0 && <div style={shared.empty}>No hay destinos guardados todavía.</div>}
+            <div className="card flush">
+                {data === null && loading ? (
+                    <SkeletonRows rows={3} />
+                ) : destinations.length === 0 ? (
+                    <EmptyState icon="pin" title="Sin destinos todavía" text="Escribe el nombre de un lugar arriba y aparecerá en el mapa." />
+                ) : (
+                    destinations.map((d) => (
+                        <div key={d.id} className="list-row row-wrap">
+                            <span className="row-icon">
+                                <Icon name="pin" />
+                            </span>
+                            <div className="row-main">
+                                <div className="row-title">{d.name}</div>
+                                <div className="row-sub">{d.displayName}</div>
+                            </div>
+                            <div className="row-actions">
+                                <button
+                                    className={`btn btn-sm${focused?.id === d.id ? " btn-primary" : ""}`}
+                                    onClick={() => {
+                                        setFocused(focused?.id === d.id ? null : d);
+                                        window.scrollTo({ top: 0, behavior: "smooth" });
+                                    }}
+                                >
+                                    {focused?.id === d.id ? "Ver todos" : "Ver"}
+                                </button>
+                                <button
+                                    className="btn btn-ghost btn-sm icon-btn"
+                                    disabled={busy}
+                                    onClick={() => {
+                                        if (!window.confirm(`¿Eliminar el destino "${d.name}"?`)) return;
+                                        if (focused?.id === d.id) setFocused(null);
+                                        void run(() => api.deleteDestination(d.id));
+                                    }}
+                                    aria-label={`Eliminar ${d.name}`}
+                                    title="Eliminar"
+                                >
+                                    <Icon name="trash" size={17} />
+                                </button>
+                            </div>
+                        </div>
+                    ))
+                )}
             </div>
         </div>
     );

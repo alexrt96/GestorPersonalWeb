@@ -15,25 +15,10 @@ export function WoffuManagerPage() {
     const [tab, setTab] = useState<SubTab>("diary");
 
     return (
-        <div>
-            <div className="sub-tabs">
+        <div className="page">
+            <div className="segmented" role="tablist" aria-label="WoffuManager">
                 {SUB_TABS.map((t) => (
-                    <button
-                        key={t.id}
-                        onClick={() => setTab(t.id)}
-                        style={{
-                            background: tab === t.id ? "var(--color-surface)" : "transparent",
-                            color: tab === t.id ? "var(--color-text)" : "var(--color-text-secondary)",
-                            border: "1px solid var(--color-border)",
-                            borderBottom: tab === t.id ? "1px solid var(--color-surface)" : "1px solid var(--color-border)",
-                            borderRadius: "8px 8px 0 0",
-                            padding: "8px 16px",
-                            fontSize: 13,
-                            cursor: "pointer",
-                            whiteSpace: "nowrap",
-                            flexShrink: 0,
-                        }}
-                    >
+                    <button key={t.id} role="tab" aria-selected={tab === t.id} className={tab === t.id ? "active" : ""} onClick={() => setTab(t.id)}>
                         {t.label}
                     </button>
                 ))}

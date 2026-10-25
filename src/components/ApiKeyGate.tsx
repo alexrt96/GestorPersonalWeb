@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { checkHealth } from "../api/client";
 import { storeCredentials } from "../api/config";
+import { Alert } from "./ui";
+import { Icon } from "./Icon";
 
 interface Props {
     onReady: () => void;
@@ -24,7 +26,7 @@ export function ApiKeyGate({ onReady }: Props) {
         const ok = await checkHealth(cleanUrl);
         setChecking(false);
         if (!ok) {
-            setError("No se pudo contactar con esa URL. Comprueba que la API esté desplegada y accesible.");
+            setError("No se pudo contactar con esa URL. Comprueba que la API esté desplegada y accesible (la primera vez puede tardar hasta un minuto en despertar).");
             return;
         }
         storeCredentials(cleanUrl, apiKey.trim());
@@ -32,80 +34,46 @@ export function ApiKeyGate({ onReady }: Props) {
     }
 
     return (
-        <div style={styles.wrap}>
-            <form style={styles.card} onSubmit={handleSubmit}>
-                <h1 style={styles.title}>GestorPersonal — Visor</h1>
-                <p style={styles.subtitle}>
-                    Introduce la URL de tu API y la clave de acceso. Se guardan solo en este navegador.
-                </p>
-                <label style={styles.label}>
+        <div className="auth-wrap">
+            <form className="auth-card" onSubmit={handleSubmit}>
+                <div className="auth-brand">
+                    <span className="brand-mark">
+                        <Icon name="layers" size={26} />
+                    </span>
+                    <div>
+                        <h1 className="auth-title">GestorPersonal</h1>
+                        <p className="auth-subtitle">Conecta el visor con tu API. Los datos se guardan solo en este navegador.</p>
+                    </div>
+                </div>
+                <label className="field">
                     URL de la API
                     <input
-                        style={styles.input}
-                        placeholder="https://tu-api.azurewebsites.net"
+                        className="input"
+                        type="url"
+                        inputMode="url"
+                        autoCapitalize="none"
+                        autoCorrect="off"
+                        placeholder="https://tu-api.onrender.com"
                         value={baseUrl}
                         onChange={(e) => setBaseUrl(e.target.value)}
                     />
                 </label>
-                <label style={styles.label}>
+                <label className="field">
                     API key
                     <input
-                        style={styles.input}
+                        className="input"
                         type="password"
+                        autoComplete="off"
                         placeholder="x-api-key"
                         value={apiKey}
                         onChange={(e) => setApiKey(e.target.value)}
                     />
                 </label>
-                {error && <div style={styles.error}>{error}</div>}
-                <button style={styles.button} type="submit" disabled={checking}>
-                    {checking ? "Comprobando…" : "Entrar"}
+                {error && <Alert>{error}</Alert>}
+                <button className="btn btn-primary btn-block" type="submit" disabled={checking}>
+                    {checking ? "Comprobando…" : "Continuar"}
                 </button>
             </form>
         </div>
     );
 }
-
-const styles: Record<string, React.CSSProperties> = {
-    wrap: {
-        minHeight: "100vh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        background: "var(--color-bg)",
-        padding: 16,
-    },
-    card: {
-        background: "var(--color-surface)",
-        borderRadius: 14,
-        padding: 32,
-        width: "100%",
-        maxWidth: 380,
-        display: "flex",
-        flexDirection: "column",
-        gap: 14,
-        border: "1px solid var(--color-border)",
-    },
-    title: { margin: 0, fontSize: 20, fontWeight: 500 },
-    subtitle: { margin: 0, color: "var(--color-text-secondary)", fontSize: 13, lineHeight: 1.5 },
-    label: { display: "flex", flexDirection: "column", gap: 6, fontSize: 13, color: "var(--color-text-secondary)" },
-    input: {
-        background: "var(--color-surface-alt)",
-        border: "1px solid var(--color-border)",
-        borderRadius: 8,
-        padding: "10px 12px",
-        color: "var(--color-text)",
-        fontSize: 14,
-    },
-    error: { color: "var(--color-danger)", fontSize: 13 },
-    button: {
-        marginTop: 6,
-        background: "transparent",
-        border: "1px solid var(--color-accent)",
-        color: "var(--color-accent)",
-        borderRadius: 10,
-        padding: "10px 14px",
-        fontSize: 14,
-        cursor: "pointer",
-    },
-};

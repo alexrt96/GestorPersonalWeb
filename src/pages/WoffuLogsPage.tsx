@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { api } from "../api/client";
 import { usePolling } from "../hooks/usePolling";
-import { formatDate, shared } from "../components/shared";
+import { formatDate } from "../components/shared";
+import { Alert, EmptyState, RefreshButton, SkeletonRows } from "../components/ui";
 
 export function WoffuLogsPage() {
     const { data: logs, error, loading, refresh } = usePolling(() => api.woffuLogs(200), 30_000);
@@ -11,11 +12,16 @@ export function WoffuLogsPage() {
     const visible = typeFilter ? (logs ?? []).filter((l) => l.type === typeFilter) : logs ?? [];
 
     return (
-        <div style={shared.page}>
-            <div style={shared.headerRow}>
-                <h1 style={shared.pageTitle}>WoffuManager — Actividad</h1>
-                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                    <select style={shared.select} value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
+        <>
+            <div className="page-header">
+                <div className="page-header-text">
+                    <h2 className="page-title" style={{ fontSize: 18 }}>
+                        Actividad
+                    </h2>
+                    <p className="page-subtitle">Fichajes y avisos de WoffuManager</p>
+                </div>
+                <div className="page-actions">
+                    <select className="select select-inline" value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} aria-label="Filtrar por tipo">
                         <option value="">Todos los tipos</option>
                         {types.map((t) => (
                             <option key={t} value={t}>
@@ -23,37 +29,44 @@ export function WoffuLogsPage() {
                             </option>
                         ))}
                     </select>
-                    <button style={shared.refreshButton} onClick={refresh} disabled={loading}>
-                        {loading ? "Actualizando…" : "Actualizar"}
-                    </button>
+                    <RefreshButton onClick={refresh} loading={loading} />
                 </div>
             </div>
 
-            {error && <div style={shared.errorBox}>{error}</div>}
+            {error && <Alert>{error}</Alert>}
 
-            <div style={shared.card}>
-                <table style={shared.table}>
-                    <thead>
-                        <tr>
-                            <th style={shared.th}>Fecha</th>
-                            <th style={shared.th}>Tipo</th>
-                            <th style={shared.th}>Mensaje</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {visible.map((l) => (
-                            <tr key={l.id}>
-                                <td style={shared.td}>{formatDate(l.timestamp)}</td>
-                                <td style={shared.td}>
-                                    <span style={shared.tag}>{l.type}</span>
-                                </td>
-                                <td style={shared.td}>{l.message}</td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-                {logs !== null && visible.length === 0 && <div style={shared.empty}>Sin registros de actividad.</div>}
+            <div className="card flush">
+                {logs === null && loading ? (
+                    <SkeletonRows rows={5} />
+                ) : logs !== null && visible.length === 0 ? (
+                    <EmptyState icon="activity" title="Sin registros" text="Aquí aparecerán los fichajes automáticos y los avisos." />
+                ) : (
+                    <div className="table-wrap">
+                        <table className="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Fecha</th>
+                                    <th>Tipo</th>
+                                    <th>Mensaje</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {visible.map((l) => (
+                                    <tr key={l.id}>
+                                        <td data-label="Fecha" className="cell-nowrap cell-muted">
+                                            {formatDate(l.timestamp)}
+                                        </td>
+                                        <td data-label="Tipo">
+                                            <span className="badge badge-accent">{l.type}</span>
+                                        </td>
+                                        <td data-label="Mensaje">{l.message}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
             </div>
-        </div>
+        </>
     );
 }
