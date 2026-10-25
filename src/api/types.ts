@@ -54,6 +54,15 @@ export interface ShoppingTemplateDetail {
     items: ShoppingTemplateItem[];
 }
 
+export interface Destination {
+    id: number;
+    name: string;
+    displayName: string;
+    latitude: number;
+    longitude: number;
+    createdAt: number;
+}
+
 export interface WoffuLog {
     id: number;
     type: string;
