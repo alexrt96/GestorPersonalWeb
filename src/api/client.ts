@@ -3,6 +3,8 @@ import type {
     AuthResponse,
     BlacklistEntry,
     CarLog,
+    Deadline,
+    DeadlineInput,
     Destination,
     PlaceCandidate,
     Device,
@@ -13,6 +15,12 @@ import type {
     ShoppingTemplate,
     ShoppingTemplateDetail,
     ShoppingTemplateItem,
+    Trip,
+    TripDetail,
+    TripInput,
+    TripPackingItem,
+    TripStop,
+    TripStopInput,
     WoffuLog,
     WoffuSettings,
     WorkdaySlotsInfo,
@@ -161,6 +169,38 @@ export const api = {
     updateDestination: (id: number, patch: { name?: string; note?: string; category?: string; visited?: boolean }) =>
         request<Destination>(`/api/destinations/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
     deleteDestination: (id: number) => request<void>(`/api/destinations/${id}`, { method: "DELETE" }),
+
+    deadlines: () => request<Deadline[]>("/api/deadlines"),
+    addDeadline: (input: DeadlineInput) =>
+        request<Deadline>("/api/deadlines", { method: "POST", body: JSON.stringify(input) }),
+    /** Una nota o categoría "" la borra. */
+    updateDeadline: (id: number, patch: Partial<DeadlineInput> & { done?: boolean }) =>
+        request<Deadline>(`/api/deadlines/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
+    /** Sin repetición lo cierra; con repetición lo reabre en la siguiente fecha. */
+    completeDeadline: (id: number) => request<Deadline>(`/api/deadlines/${id}/complete`, { method: "POST" }),
+    deleteDeadline: (id: number) => request<void>(`/api/deadlines/${id}`, { method: "DELETE" }),
+
+    trips: () => request<Trip[]>("/api/trips"),
+    trip: (id: number) => request<TripDetail>(`/api/trips/${id}`),
+    addTrip: (input: TripInput) => request<Trip>("/api/trips", { method: "POST", body: JSON.stringify(input) }),
+    /** Una nota "" la borra. */
+    updateTrip: (id: number, patch: Partial<TripInput>) =>
+        request<Trip>(`/api/trips/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
+    deleteTrip: (id: number) => request<void>(`/api/trips/${id}`, { method: "DELETE" }),
+    addTripStop: (tripId: number, input: TripStopInput) =>
+        request<TripStop>(`/api/trips/${tripId}/stops`, { method: "POST", body: JSON.stringify(input) }),
+    /** Hora, lugar o nota "" los borra. */
+    updateTripStop: (tripId: number, stopId: number, patch: Partial<TripStopInput>) =>
+        request<TripStop>(`/api/trips/${tripId}/stops/${stopId}`, { method: "PATCH", body: JSON.stringify(patch) }),
+    deleteTripStop: (tripId: number, stopId: number) =>
+        request<void>(`/api/trips/${tripId}/stops/${stopId}`, { method: "DELETE" }),
+    addPackingItem: (tripId: number, name: string) =>
+        request<TripPackingItem>(`/api/trips/${tripId}/packing`, { method: "POST", body: JSON.stringify({ name }) }),
+    updatePackingItem: (tripId: number, itemId: number, patch: { name?: string; checked?: boolean }) =>
+        request<TripPackingItem>(`/api/trips/${tripId}/packing/${itemId}`, { method: "PATCH", body: JSON.stringify(patch) }),
+    deletePackingItem: (tripId: number, itemId: number) =>
+        request<void>(`/api/trips/${tripId}/packing/${itemId}`, { method: "DELETE" }),
+    uncheckAllPacking: (tripId: number) => request<void>(`/api/trips/${tripId}/packing/uncheck-all`, { method: "POST" }),
 
     woffuLogs: (limit = 200) => request<WoffuLog[]>(`/api/woffu/logs?limit=${limit}`),
 

@@ -12,6 +12,8 @@ import { CarLogsPage } from "./pages/CarLogsPage";
 import { ShoppingPage } from "./pages/ShoppingPage";
 import { DestinationsPage } from "./pages/DestinationsPage";
 import { WoffuManagerPage } from "./pages/WoffuManagerPage";
+import { DeadlinesPage } from "./pages/DeadlinesPage";
+import { TripsPage } from "./pages/TripsPage";
 import { SettingsPage } from "./pages/SettingsPage";
 
 const TAB_KEY = "gestorpersonal.tab";
@@ -177,6 +179,8 @@ export default function App() {
                 {activeTab === "shopping" && <ShoppingPage />}
                 {activeTab === "destinations" && <DestinationsPage />}
                 {activeTab === "woffu" && <WoffuManagerPage />}
+                {activeTab === "deadlines" && <DeadlinesPage />}
+                {activeTab === "trips" && <TripsPage />}
                 {activeTab === "settings" && (
                     <SettingsPage username={username} modules={modules} onModulesChange={setModules} onLogout={handleLogout} />
                 )}
