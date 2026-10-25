@@ -4,8 +4,9 @@ import { LoginGate } from "./components/LoginGate";
 import { getStoredCredentials, getStoredSession, clearCredentials, clearSession } from "./api/config";
 import { api, setUnauthorizedHandler } from "./api/client";
 import type { ModuleSettings } from "./api/types";
-import { MODULES, MODULE_TABS } from "./modules";
+import { MODULES, MODULE_TABS, SETTINGS_TAB } from "./modules";
 import type { Tab } from "./modules";
+import { Icon } from "./components/Icon";
 import { DevicesPage } from "./pages/DevicesPage";
 import { CarLogsPage } from "./pages/CarLogsPage";
 import { ShoppingPage } from "./pages/ShoppingPage";
@@ -13,11 +14,30 @@ import { DestinationsPage } from "./pages/DestinationsPage";
 import { WoffuManagerPage } from "./pages/WoffuManagerPage";
 import { SettingsPage } from "./pages/SettingsPage";
 
+const TAB_KEY = "gestorpersonal.tab";
+
+/** La sección activa se recuerda entre recargas (útil en móvil, donde el navegador recarga las pestañas con frecuencia). */
+function readStoredTab(): Tab | null {
+    try {
+        return localStorage.getItem(TAB_KEY) as Tab | null;
+    } catch {
+        return null;
+    }
+}
+
+function storeTab(tab: Tab): void {
+    try {
+        localStorage.setItem(TAB_KEY, tab);
+    } catch {
+        // sin almacenamiento: simplemente no se recuerda
+    }
+}
+
 export default function App() {
     const [ready, setReady] = useState(() => getStoredCredentials() !== null);
     const [username, setUsername] = useState<string | null>(() => getStoredSession()?.username ?? null);
     const [modules, setModules] = useState<ModuleSettings | null>(null);
-    const [tab, setTab] = useState<Tab | null>(null);
+    const [tab, setTab] = useState<Tab | null>(readStoredTab);
     const [menuOpen, setMenuOpen] = useState(false);
     const headerRef = useRef<HTMLElement>(null);
 
@@ -76,13 +96,16 @@ export default function App() {
         );
     }
     if (modules === null) {
-        return <div style={{ padding: 32, color: "var(--color-text-secondary)" }}>Cargando…</div>;
+        return (
+            <div className="auth-wrap">
+                <div className="brand-mark" aria-label="Cargando">
+                    <Icon name="layers" size={18} />
+                </div>
+            </div>
+        );
     }
 
-    const visibleTabs = [
-        ...MODULES.filter((m) => modules[m.id] ?? true).flatMap((m) => MODULE_TABS[m.id]),
-        { id: "settings" as Tab, label: "Ajustes" },
-    ];
+    const visibleTabs = [...MODULES.filter((m) => modules[m.id] ?? true).flatMap((m) => MODULE_TABS[m.id]), SETTINGS_TAB];
     // Si aún no se eligió pestaña, o la elegida pertenece a un módulo recién desactivado, se usa la primera visible.
     const activeTab = tab !== null && visibleTabs.some((t) => t.id === tab) ? tab : visibleTabs[0].id;
 
@@ -96,47 +119,59 @@ export default function App() {
     }
 
     return (
-        <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
+        <div className="app-shell">
             <header className="app-header" ref={headerRef}>
-                <strong className="app-brand">GestorPersonal</strong>
-                {/* Solo visible en móvil: muestra la pestaña actual y abre el menú desplegable. */}
-                <button
-                    className="app-menu-btn"
-                    aria-expanded={menuOpen}
-                    aria-controls="app-menu"
-                    onClick={() => setMenuOpen((open) => !open)}
-                >
-                    <span className="app-menu-label">{visibleTabs.find((t) => t.id === activeTab)?.label}</span>
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
-                        {menuOpen ? <path d="M6 6l12 12M18 6L6 18" /> : <path d="M4 7h16M4 12h16M4 17h16" />}
-                    </svg>
-                </button>
-                {/* En escritorio es transparente al layout (display: contents); en móvil es el desplegable. */}
-                <div id="app-menu" className={`app-menu${menuOpen ? " open" : ""}`}>
-                    <nav className="app-nav">
-                        {visibleTabs.map((t) => (
-                            <button
-                                key={t.id}
-                                className={`app-tab${activeTab === t.id ? " active" : ""}`}
-                                onClick={() => {
-                                    setTab(t.id);
-                                    setMenuOpen(false);
-                                }}
-                            >
-                                {t.label}
+                <div className="app-header-inner">
+                    <div className="brand">
+                        <span className="brand-mark">
+                            <Icon name="layers" size={17} />
+                        </span>
+                        GestorPersonal
+                    </div>
+                    {/* Solo visible en móvil: muestra la pestaña actual y abre el menú desplegable. */}
+                    <button
+                        className="app-menu-btn"
+                        aria-expanded={menuOpen}
+                        aria-controls="app-menu"
+                        onClick={() => setMenuOpen((open) => !open)}
+                    >
+                        <span className="app-menu-label">{visibleTabs.find((t) => t.id === activeTab)?.label}</span>
+                        <Icon name={menuOpen ? "close" : "menu"} />
+                    </button>
+                    {/* En escritorio es transparente al layout (display: contents); en móvil es el desplegable. */}
+                    <div id="app-menu" className={`app-menu${menuOpen ? " open" : ""}`}>
+                        <nav className="app-nav" aria-label="Secciones">
+                            {visibleTabs.map((t) => (
+                                <button
+                                    key={t.id}
+                                    className={`app-tab${activeTab === t.id ? " active" : ""}`}
+                                    aria-current={activeTab === t.id ? "page" : undefined}
+                                    onClick={() => {
+                                        setTab(t.id);
+                                        storeTab(t.id);
+                                        setMenuOpen(false);
+                                    }}
+                                >
+                                    <Icon name={t.icon} size={17} />
+                                    {t.label}
+                                </button>
+                            ))}
+                        </nav>
+                        <div className="app-user">
+                            <span className="avatar" aria-hidden="true">
+                                {username.charAt(0)}
+                            </span>
+                            <span className="app-user-name">{username}</span>
+                            <button className="btn btn-ghost btn-sm" onClick={handleLogout}>
+                                <Icon name="logout" size={16} />
+                                Salir
                             </button>
-                        ))}
-                    </nav>
-                    <span className="app-user">
-                        <span className="app-user-name">{username}</span>
-                        <button className="app-logout" onClick={handleLogout}>
-                            Cerrar sesión
-                        </button>
-                    </span>
+                        </div>
+                    </div>
                 </div>
             </header>
 
-            <main style={{ flex: 1 }}>
+            <main className="app-main">
                 {activeTab === "devices" && <DevicesPage />}
                 {activeTab === "carlogs" && <CarLogsPage />}
                 {activeTab === "shopping" && <ShoppingPage />}

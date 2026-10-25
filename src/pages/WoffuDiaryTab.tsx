@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { api, ApiError } from "../api/client";
 import type { Diary, WorkdaySlotsInfo } from "../api/types";
-import { shared } from "../components/shared";
+import { Alert, EmptyState, SkeletonRows } from "../components/ui";
+import { Icon } from "../components/Icon";
 
 function pad(n: number): string {
     return n < 10 ? `0${n}` : String(n);
@@ -18,10 +19,10 @@ function hoursLabel(h: { values: string[] | null } | null): string {
 
 function diaryStatusColor(d: Diary): string {
     if (d.isToday) return "#FF9800";
-    if (d.isHoliday) return "#9C27B0";
-    if (d.isWeekend) return "#607D8B";
-    if (d.absenceEvents && d.absenceEvents.length > 0) return "#00897B";
-    return "#3F51B5";
+    if (d.isHoliday) return "#B45FC7";
+    if (d.isWeekend) return "#7C95A6";
+    if (d.absenceEvents && d.absenceEvents.length > 0) return "#2FB5A3";
+    return "#7B88E8";
 }
 
 function diaryStatusText(d: Diary): string {
@@ -68,35 +69,49 @@ export function WoffuDiaryTab() {
     useEffect(load, [cursor]);
 
     return (
-        <div style={shared.page}>
-            <div style={shared.headerRow}>
-                <button style={shared.refreshButton} onClick={() => setCursor((c) => new Date(c.getFullYear(), c.getMonth() - 1, 1))}>
-                    ←
+        <>
+            <div className="month-nav">
+                <button
+                    className="btn icon-btn"
+                    onClick={() => setCursor((c) => new Date(c.getFullYear(), c.getMonth() - 1, 1))}
+                    aria-label="Mes anterior"
+                >
+                    <Icon name="chevronLeft" />
                 </button>
-                <h1 style={{ ...shared.pageTitle, flex: 1, textAlign: "center" }}>{monthTitle}</h1>
-                <button style={shared.refreshButton} onClick={() => setCursor((c) => new Date(c.getFullYear(), c.getMonth() + 1, 1))}>
-                    →
+                <h2 className="month-title">{monthTitle}</h2>
+                <button
+                    className="btn icon-btn"
+                    onClick={() => setCursor((c) => new Date(c.getFullYear(), c.getMonth() + 1, 1))}
+                    aria-label="Mes siguiente"
+                >
+                    <Icon name="chevronRight" />
                 </button>
             </div>
 
             {totals && !error && (
-                <div style={{ display: "flex", justifyContent: "space-around", ...shared.card }}>
+                <div className="stats">
                     <Stat label="Programado" value={totals.scheduled} />
                     <Stat label="Trabajado" value={totals.worked} />
                     <Stat label="Diferencia" value={totals.diff} color={totals.diffNeg ? "var(--color-danger)" : "var(--color-success)"} />
                 </div>
             )}
 
-            {error && <div style={shared.errorBox}>{error}</div>}
+            {error && <Alert>{error}</Alert>}
 
             {loading ? (
-                <div style={shared.empty}>Cargando…</div>
+                <div className="card flush">
+                    <SkeletonRows rows={6} />
+                </div>
             ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <div className="day-list">
                     {(diaries ?? []).map((d) => (
                         <DiaryCard key={d.diaryId} diary={d} onClick={() => setSelected(d)} />
                     ))}
-                    {diaries !== null && diaries.length === 0 && <div style={shared.empty}>No hay días en este mes.</div>}
+                    {diaries !== null && diaries.length === 0 && (
+                        <div className="card flush">
+                            <EmptyState icon="inbox" title="No hay días en este mes" />
+                        </div>
+                    )}
                 </div>
             )}
 
@@ -110,15 +125,17 @@ export function WoffuDiaryTab() {
                     }}
                 />
             )}
-        </div>
+        </>
     );
 }
 
 function Stat({ label, value, color }: { label: string; value: string; color?: string }) {
     return (
-        <div style={{ textAlign: "center" }}>
-            <div style={{ fontSize: 16, color: color ?? "var(--color-text)" }}>{value}</div>
-            <div style={{ fontSize: 11, color: "var(--color-text-secondary)" }}>{label}</div>
+        <div className="stat">
+            <div className="stat-value" style={{ color }}>
+                {value}
+            </div>
+            <div className="stat-label">{label}</div>
         </div>
     );
 }
@@ -130,45 +147,22 @@ function DiaryCard({ diary, onClick }: { diary: Diary; onClick: () => void }) {
     const worked = diary.workingTimeFormatted?.values?.[0];
 
     return (
-        <div
-            onClick={onClick}
-            style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 14,
-                padding: 14,
-                borderRadius: 10,
-                cursor: "pointer",
-                background: diary.isToday ? "rgba(145,132,217,0.08)" : "var(--color-surface)",
-                border: "1px solid var(--color-border)",
-            }}
-        >
-            <div
-                style={{
-                    width: 44,
-                    height: 44,
-                    borderRadius: 10,
-                    background: `${color}29`,
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    flexShrink: 0,
-                }}
-            >
-                <div style={{ color, fontWeight: 700, fontSize: 15 }}>{date.getDate()}</div>
-                <div style={{ color, fontSize: 10 }}>{date.toLocaleDateString("es-ES", { weekday: "short" }).toUpperCase()}</div>
+        <button className={`day-card${diary.isToday ? " today" : ""}`} onClick={onClick}>
+            <div className="day-badge" style={{ background: `${color}29`, color }}>
+                <strong>{date.getDate()}</strong>
+                <span>{date.toLocaleDateString("es-ES", { weekday: "short" }).replace(".", "").toUpperCase()}</span>
             </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 14 }}>{diaryStatusText(diary)}</div>
+            <div className="row-main">
+                <div className="row-title">{diaryStatusText(diary)}</div>
                 {hasTime && (
-                    <div style={{ fontSize: 12, color: "var(--color-text-secondary)" }}>
+                    <div className="row-sub">
                         {diary.in?.slice(0, 5) ?? "--:--"} → {diary.out?.slice(0, 5) ?? "--:--"}
                     </div>
                 )}
             </div>
-            {worked && (worked !== "0" || hasTime) && <div style={{ fontSize: 14 }}>{worked}h</div>}
-        </div>
+            {worked && (worked !== "0" || hasTime) && <div style={{ fontSize: 14, fontWeight: 600 }}>{worked}h</div>}
+            <Icon name="chevronRight" size={16} />
+        </button>
     );
 }
 
@@ -186,6 +180,15 @@ function DiaryDetail({ diary, onClose, onFixed }: { diary: Diary; onClose: () =>
             .catch(() => setSlots(null))
             .finally(() => setLoadingSlots(false));
     }, [diary]);
+
+    // Cerrar con Escape
+    useEffect(() => {
+        const onKeyDown = (e: KeyboardEvent) => {
+            if (e.key === "Escape") onClose();
+        };
+        document.addEventListener("keydown", onKeyDown);
+        return () => document.removeEventListener("keydown", onKeyDown);
+    }, [onClose]);
 
     async function handleFix() {
         setFixing(true);
@@ -213,19 +216,20 @@ function DiaryDetail({ diary, onClose, onFixed }: { diary: Diary; onClose: () =>
     if (diary.comments) extraLines.push(`💬 ${diary.comments}`);
 
     return (
-        <div style={overlayStyles.backdrop} onClick={onClose}>
-            <div style={overlayStyles.sheet} onClick={(e) => e.stopPropagation()}>
-                <h2 style={{ margin: "0 0 4px", fontSize: 18 }}>
-                    {date.toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long" })}
-                </h2>
-                <div style={{ color: "var(--color-text-secondary)", fontSize: 13, marginBottom: 16 }}>{diaryStatusText(diary)}</div>
-
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 14 }}>
-                    <TimeBlock label="Entrada" value={diary.in?.slice(0, 5) ?? "--:--"} />
-                    <TimeBlock label="Salida" value={diary.out?.slice(0, 5) ?? "--:--"} />
+        <div className="sheet-backdrop" onClick={onClose}>
+            <div className="sheet" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+                <div className="sheet-grip" />
+                <h2 className="sheet-title">{date.toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long" })}</h2>
+                <div className="page-subtitle" style={{ marginBottom: 18 }}>
+                    {diaryStatusText(diary)}
                 </div>
 
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 14 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 18 }}>
+                    <TimeBlock label="Entrada" value={diary.in?.slice(0, 5) ?? "--:--"} />
+                    <TimeBlock label="Salida" value={diary.out?.slice(0, 5) ?? "--:--"} align="right" />
+                </div>
+
+                <div className="stats" style={{ marginBottom: 18 }}>
                     <Stat label="Programado" value={hoursLabel(diary.scheduleTimeFormatted)} />
                     <Stat label="Trabajado" value={hoursLabel(diary.workingTimeFormatted)} />
                     <Stat
@@ -236,19 +240,19 @@ function DiaryDetail({ diary, onClose, onFixed }: { diary: Diary; onClose: () =>
                 </div>
 
                 {extraLines.length > 0 && (
-                    <div style={{ fontSize: 13, color: "var(--color-text-secondary)", marginBottom: 14, whiteSpace: "pre-line" }}>
+                    <div className="page-subtitle" style={{ marginBottom: 16, whiteSpace: "pre-line" }}>
                         {extraLines.join("\n")}
                     </div>
                 )}
 
                 {loadingSlots ? (
-                    <div style={{ color: "var(--color-text-secondary)", fontSize: 13 }}>Cargando fichajes…</div>
+                    <div className="page-subtitle">Cargando fichajes…</div>
                 ) : realSlots.length === 0 ? (
-                    <div style={{ color: "var(--color-text-secondary)", fontSize: 13 }}>Sin fichajes registrados</div>
+                    <div className="page-subtitle">Sin fichajes registrados</div>
                 ) : (
-                    <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14 }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
                         {realSlots.map((slot, idx) => (
-                            <div key={idx} style={{ display: "flex", gap: 10 }}>
+                            <div key={idx} style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                                 <SlotChip label="Entrada" sign={slot.in} />
                                 <SlotChip label="Salida" sign={slot.out} />
                             </div>
@@ -256,27 +260,32 @@ function DiaryDetail({ diary, onClose, onFixed }: { diary: Diary; onClose: () =>
                     </div>
                 )}
 
-                {fixError && <div style={{ ...shared.errorBox, marginBottom: 12 }}>{fixError}</div>}
-
-                {slots?.diaryBaseWorkDay?.startTime && (
-                    <button style={overlayStyles.fixButton} onClick={handleFix} disabled={fixing}>
-                        {fixing ? "Arreglando…" : "Arreglar día"}
-                    </button>
+                {fixError && (
+                    <div style={{ marginBottom: 12 }}>
+                        <Alert>{fixError}</Alert>
+                    </div>
                 )}
 
-                <button style={overlayStyles.closeButton} onClick={onClose}>
-                    Cerrar
-                </button>
+                <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 8 }}>
+                    {slots?.diaryBaseWorkDay?.startTime && (
+                        <button className="btn btn-primary btn-block" onClick={handleFix} disabled={fixing}>
+                            {fixing ? "Arreglando…" : "Arreglar día"}
+                        </button>
+                    )}
+                    <button className="btn btn-block" onClick={onClose}>
+                        Cerrar
+                    </button>
+                </div>
             </div>
         </div>
     );
 }
 
-function TimeBlock({ label, value }: { label: string; value: string }) {
+function TimeBlock({ label, value, align }: { label: string; value: string; align?: "right" }) {
     return (
-        <div>
-            <div style={{ fontSize: 22, fontWeight: 700 }}>{value}</div>
-            <div style={{ fontSize: 11, color: "var(--color-text-secondary)" }}>{label}</div>
+        <div style={{ textAlign: align }}>
+            <div className="time-big">{value}</div>
+            <div className="stat-label">{label}</div>
         </div>
     );
 }
@@ -286,51 +295,8 @@ function SlotChip({ label, sign }: { label: string; sign: { shortTrueTime: strin
     const time = (sign?.shortTrueTime ?? sign?.time ?? "--:--").slice(0, 5);
     const color = isReal ? "var(--color-success)" : "var(--color-danger)";
     return (
-        <div style={{ background: `${color}1f`, color, borderRadius: 8, padding: "6px 10px", fontSize: 12 }}>
+        <div className="slot-chip" style={{ background: `color-mix(in srgb, ${color} 14%, transparent)`, color }}>
             {label} {time} {isReal ? "✓" : "✗"}
         </div>
     );
 }
-
-const overlayStyles: Record<string, React.CSSProperties> = {
-    backdrop: {
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0,0,0,0.5)",
-        display: "flex",
-        alignItems: "flex-end",
-        justifyContent: "center",
-        zIndex: 50,
-    },
-    sheet: {
-        background: "var(--color-surface)",
-        borderTopLeftRadius: 16,
-        borderTopRightRadius: 16,
-        padding: 24,
-        width: "100%",
-        maxWidth: 480,
-        maxHeight: "85vh",
-        overflowY: "auto",
-    },
-    fixButton: {
-        width: "100%",
-        background: "transparent",
-        border: "1px solid var(--color-accent)",
-        color: "var(--color-accent)",
-        borderRadius: 10,
-        padding: "10px 14px",
-        fontSize: 14,
-        cursor: "pointer",
-        marginBottom: 10,
-    },
-    closeButton: {
-        width: "100%",
-        background: "transparent",
-        border: "1px solid var(--color-border)",
-        color: "var(--color-text-secondary)",
-        borderRadius: 10,
-        padding: "10px 14px",
-        fontSize: 14,
-        cursor: "pointer",
-    },
-};

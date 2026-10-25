@@ -2,6 +2,8 @@ import { useState } from "react";
 import type { FormEvent } from "react";
 import { api, ApiError } from "../api/client";
 import { storeSession } from "../api/config";
+import { Alert } from "./ui";
+import { Icon } from "./Icon";
 
 interface Props {
     onLoggedIn: (username: string) => void;
@@ -24,9 +26,8 @@ export function LoginGate({ onLoggedIn, onChangeCredentials }: Props) {
         }
         setBusy(true);
         try {
-            const result = mode === "login"
-                ? await api.login(username.trim(), password)
-                : await api.register(username.trim(), password);
+            const result =
+                mode === "login" ? await api.login(username.trim(), password) : await api.register(username.trim(), password);
             storeSession(result.token, result.user.username);
             onLoggedIn(result.user.username);
         } catch (err) {
@@ -36,104 +37,66 @@ export function LoginGate({ onLoggedIn, onChangeCredentials }: Props) {
         }
     }
 
+    const isLogin = mode === "login";
+
     return (
-        <div style={styles.wrap}>
-            <form style={styles.card} onSubmit={handleSubmit}>
-                <h1 style={styles.title}>{mode === "login" ? "Iniciar sesión" : "Crear usuario"}</h1>
-                <p style={styles.subtitle}>
-                    Tus dispositivos y tu WoffuManager son solo tuyos. La lista de la compra y los destinos son comunes a todos los usuarios.
-                </p>
-                <label style={styles.label}>
+        <div className="auth-wrap">
+            <form className="auth-card" onSubmit={handleSubmit}>
+                <div className="auth-brand">
+                    <span className="brand-mark">
+                        <Icon name="layers" size={26} />
+                    </span>
+                    <div>
+                        <h1 className="auth-title">{isLogin ? "Bienvenido" : "Crear usuario"}</h1>
+                        <p className="auth-subtitle">
+                            {isLogin
+                                ? "Inicia sesión para ver tus dispositivos y tu WoffuManager."
+                                : "Tus dispositivos y WoffuManager serán solo tuyos; la compra y los destinos son comunes."}
+                        </p>
+                    </div>
+                </div>
+                <label className="field">
                     Usuario
                     <input
-                        style={styles.input}
+                        className="input"
                         autoComplete="username"
                         autoCapitalize="none"
+                        autoCorrect="off"
                         value={username}
                         onChange={(e) => setUsername(e.target.value)}
                     />
                 </label>
-                <label style={styles.label}>
+                <label className="field">
                     Contraseña
                     <input
-                        style={styles.input}
+                        className="input"
                         type="password"
-                        autoComplete={mode === "login" ? "current-password" : "new-password"}
-                        placeholder={mode === "register" ? "Mínimo 8 caracteres" : undefined}
+                        autoComplete={isLogin ? "current-password" : "new-password"}
+                        placeholder={isLogin ? undefined : "Mínimo 8 caracteres"}
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                     />
                 </label>
-                {error && <div style={styles.error}>{error}</div>}
-                <button style={styles.button} type="submit" disabled={busy}>
-                    {busy ? "Un momento…" : mode === "login" ? "Entrar" : "Crear usuario y entrar"}
+                {error && <Alert>{error}</Alert>}
+                <button className="btn btn-primary btn-block" type="submit" disabled={busy}>
+                    {busy ? "Un momento…" : isLogin ? "Entrar" : "Crear usuario y entrar"}
                 </button>
-                <button
-                    type="button"
-                    style={styles.link}
-                    onClick={() => {
-                        setMode(mode === "login" ? "register" : "login");
-                        setError(null);
-                    }}
-                >
-                    {mode === "login" ? "No tengo usuario: crear uno" : "Ya tengo usuario: iniciar sesión"}
-                </button>
-                <button type="button" style={styles.link} onClick={onChangeCredentials}>
-                    Cambiar URL / API key
-                </button>
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+                    <button
+                        type="button"
+                        className="link-btn"
+                        onClick={() => {
+                            setMode(isLogin ? "register" : "login");
+                            setError(null);
+                        }}
+                    >
+                        {isLogin ? "No tengo usuario: crear uno" : "Ya tengo usuario: iniciar sesión"}
+                    </button>
+                    <button type="button" className="link-btn" onClick={onChangeCredentials}>
+                        Cambiar URL / API key
+                    </button>
+                </div>
             </form>
         </div>
     );
 }
-
-const styles: Record<string, React.CSSProperties> = {
-    wrap: {
-        minHeight: "100vh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        background: "var(--color-bg)",
-        padding: 16,
-    },
-    card: {
-        background: "var(--color-surface)",
-        borderRadius: 14,
-        padding: 32,
-        width: "100%",
-        maxWidth: 380,
-        display: "flex",
-        flexDirection: "column",
-        gap: 14,
-        border: "1px solid var(--color-border)",
-    },
-    title: { margin: 0, fontSize: 20, fontWeight: 500 },
-    subtitle: { margin: 0, color: "var(--color-text-secondary)", fontSize: 13, lineHeight: 1.5 },
-    label: { display: "flex", flexDirection: "column", gap: 6, fontSize: 13, color: "var(--color-text-secondary)" },
-    input: {
-        background: "var(--color-surface-alt)",
-        border: "1px solid var(--color-border)",
-        borderRadius: 8,
-        padding: "10px 12px",
-        color: "var(--color-text)",
-        fontSize: 14,
-    },
-    error: { color: "var(--color-danger)", fontSize: 13 },
-    button: {
-        marginTop: 6,
-        background: "transparent",
-        border: "1px solid var(--color-accent)",
-        color: "var(--color-accent)",
-        borderRadius: 10,
-        padding: "10px 14px",
-        fontSize: 14,
-        cursor: "pointer",
-    },
-    link: {
-        background: "transparent",
-        border: "none",
-        color: "var(--color-text-secondary)",
-        fontSize: 12,
-        cursor: "pointer",
-        textDecoration: "underline",
-    },
-};

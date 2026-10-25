@@ -3,14 +3,16 @@ import type { FormEvent } from "react";
 import { api, ApiError } from "../api/client";
 import { usePolling } from "../hooks/usePolling";
 import type { ShoppingTemplateDetail } from "../api/types";
-import { shared } from "../components/shared";
+import { Alert, EmptyState, PageHeader, RefreshButton, SkeletonRows } from "../components/ui";
+import { Icon } from "../components/Icon";
 
 const CATEGORY_ORDER = ["Frescos", "Despensa", "Limpieza", "Bebidas", "Otros"];
+const NO_CATEGORY = "Sin categoría";
 
 function groupByCategory<T extends { category: string | null }>(items: T[]): [string, T[]][] {
     const groups = new Map<string, T[]>();
     for (const item of items) {
-        const key = item.category ?? "Sin categoría";
+        const key = item.category ?? NO_CATEGORY;
         if (!groups.has(key)) groups.set(key, []);
         groups.get(key)!.push(item);
     }
@@ -32,7 +34,7 @@ export function ShoppingPage() {
 
     const [newName, setNewName] = useState("");
     const [newQuantity, setNewQuantity] = useState(1);
-    const [newCategory, setNewCategory] = useState("");
+    const [newCategory, setNewCategory] = useState("Otros");
     const [busy, setBusy] = useState(false);
     const [actionError, setActionError] = useState<string | null>(null);
 
@@ -96,168 +98,195 @@ export function ShoppingPage() {
         });
     }
 
-    const grouped = groupByCategory(items.data ?? []);
-    const checkedCount = (items.data ?? []).filter((i) => i.checked).length;
+    const all = items.data ?? [];
+    const grouped = groupByCategory(all);
+    const checkedCount = all.filter((i) => i.checked).length;
+    const progress = all.length > 0 ? Math.round((checkedCount / all.length) * 100) : 0;
 
     return (
-        <div style={shared.page}>
-            <div style={shared.headerRow}>
-                <h1 style={shared.pageTitle}>Lista de la compra</h1>
-                <button style={shared.refreshButton} onClick={() => { items.refresh(); templates.refresh(); }} disabled={items.loading || busy}>
-                    {items.loading ? "Actualizando…" : "Actualizar"}
-                </button>
-            </div>
+        <div className="page">
+            <PageHeader
+                title="Lista de la compra"
+                subtitle={items.data ? `${all.length} artículo${all.length === 1 ? "" : "s"} · ${checkedCount} marcado${checkedCount === 1 ? "" : "s"} · compartida con todos` : "Compartida con todos los usuarios"}
+                actions={
+                    <RefreshButton
+                        onClick={() => {
+                            items.refresh();
+                            templates.refresh();
+                        }}
+                        loading={items.loading}
+                        disabled={busy}
+                    />
+                }
+            />
 
-            {items.error && <div style={shared.errorBox}>{items.error}</div>}
-            {actionError && <div style={shared.errorBox}>{actionError}</div>}
+            {items.error && <Alert>{items.error}</Alert>}
+            {actionError && <Alert>{actionError}</Alert>}
 
-            <div style={shared.card}>
-                <form onSubmit={handleAdd} style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
+            <form className="card form-stack" onSubmit={handleAdd}>
+                <div className="form-row" style={{ flexWrap: "nowrap" }}>
                     <input
-                        style={{ ...shared.input, flex: "1 1 180px" }}
+                        className="input"
                         placeholder="Añadir artículo…"
+                        aria-label="Nombre del artículo"
+                        enterKeyHint="done"
                         value={newName}
                         onChange={(e) => setNewName(e.target.value)}
                     />
-                    <input
-                        style={{ ...shared.input, width: 64 }}
-                        type="number"
-                        min={1}
-                        aria-label="Cantidad"
-                        value={newQuantity}
-                        onChange={(e) => setNewQuantity(Math.max(1, Number(e.target.value) || 1))}
-                    />
-                    <select style={shared.select} aria-label="Categoría" value={newCategory} onChange={(e) => setNewCategory(e.target.value)}>
-                        <option value="">Sin categoría</option>
-                        {CATEGORY_ORDER.map((c) => (
-                            <option key={c} value={c}>{c}</option>
-                        ))}
-                    </select>
-                    <button type="submit" style={shared.accentButton} disabled={busy || !newName.trim()}>
-                        Añadir
-                    </button>
-                </form>
-
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 8 }}>
-                    <span style={{ color: "var(--color-text-secondary)", fontSize: 13 }}>
-                        {items.data?.length ?? 0} artículos · {checkedCount} marcados
-                    </span>
-                    <span style={{ display: "flex", gap: 8 }}>
-                        <button style={shared.smallButton} onClick={handleSaveTemplate} disabled={busy || (items.data?.length ?? 0) === 0}>
-                            Guardar como plantilla
+                    <div className="stepper" role="group" aria-label="Cantidad">
+                        <button type="button" onClick={() => setNewQuantity((q) => Math.max(1, q - 1))} disabled={newQuantity <= 1} aria-label="Menos">
+                            <Icon name="minus" size={16} />
                         </button>
-                        <button
-                            style={shared.smallButton}
-                            onClick={() => void run(() => api.clearCheckedShoppingItems())}
-                            disabled={busy || checkedCount === 0}
-                        >
-                            Quitar marcados
+                        <span className="stepper-value">{newQuantity}</span>
+                        <button type="button" onClick={() => setNewQuantity((q) => q + 1)} aria-label="Más">
+                            <Icon name="plus" size={16} />
                         </button>
-                    </span>
+                    </div>
                 </div>
+                <div className="chips" role="radiogroup" aria-label="Categoría">
+                    {CATEGORY_ORDER.map((c) => (
+                        <button
+                            key={c}
+                            type="button"
+                            role="radio"
+                            aria-checked={newCategory === c}
+                            className={`chip${newCategory === c ? " active" : ""}`}
+                            onClick={() => setNewCategory(c)}
+                        >
+                            {c}
+                        </button>
+                    ))}
+                </div>
+                <button type="submit" className="btn btn-primary btn-block" disabled={busy || !newName.trim()}>
+                    <Icon name="plus" size={17} />
+                    Añadir a la lista
+                </button>
+            </form>
 
-                {grouped.map(([category, categoryItems]) => (
-                    <div key={category} style={{ marginBottom: 14 }}>
-                        <div style={{ fontSize: 12, textTransform: "uppercase", letterSpacing: 0.5, color: "var(--color-text-secondary)", marginBottom: 6 }}>
-                            {category}
+            <div className="card flush">
+                {items.data === null && items.loading ? (
+                    <SkeletonRows rows={4} />
+                ) : all.length === 0 ? (
+                    <EmptyState icon="cart" title="La lista está vacía" text="Añade tu primer artículo arriba o aplica una plantilla." />
+                ) : (
+                    <>
+                        <div style={{ padding: "16px 16px 4px" }}>
+                            <div className="list-toolbar">
+                                <span className="list-toolbar-label">
+                                    {checkedCount === all.length ? "Todo cogido" : `${all.length - checkedCount} por coger`}
+                                </span>
+                                <span className="row-actions">
+                                    <button className="btn btn-sm" onClick={handleSaveTemplate} disabled={busy}>
+                                        <Icon name="bookmark" size={15} />
+                                        Guardar plantilla
+                                    </button>
+                                    <button
+                                        className="btn btn-sm btn-danger"
+                                        onClick={() => void run(() => api.clearCheckedShoppingItems())}
+                                        disabled={busy || checkedCount === 0}
+                                    >
+                                        <Icon name="trash" size={15} />
+                                        Quitar marcados
+                                    </button>
+                                </span>
+                            </div>
+                            <div className="progress" role="progressbar" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100}>
+                                <span style={{ width: `${progress}%` }} />
+                            </div>
                         </div>
-                        {categoryItems.map((item) => (
-                            <div
-                                key={item.id}
-                                style={{
-                                    display: "flex",
-                                    flexWrap: "wrap",
-                                    alignItems: "center",
-                                    gap: 10,
-                                    padding: "6px 0",
-                                    borderBottom: "1px solid var(--color-border)",
-                                    fontSize: 14,
-                                }}
-                            >
-                                <input
-                                    type="checkbox"
-                                    checked={item.checked}
-                                    disabled={busy}
-                                    onChange={() => void run(() => api.patchShoppingItem(item.id, { checked: !item.checked }))}
-                                    aria-label={`Marcar ${item.name}`}
-                                />
-                                <span
-                                    style={{
-                                        flex: "1 1 120px",
-                                        minWidth: 0,
-                                        overflowWrap: "anywhere",
-                                        opacity: item.checked ? 0.5 : 1,
-                                        textDecoration: item.checked ? "line-through" : "none",
-                                    }}
-                                >
-                                    {item.name}
-                                </span>
-                                <span style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--color-text-secondary)" }}>
-                                    <button
-                                        style={shared.smallButton}
-                                        disabled={busy || item.quantity <= 1}
-                                        onClick={() => void run(() => api.patchShoppingItem(item.id, { quantity: item.quantity - 1 }))}
-                                        aria-label={`Reducir cantidad de ${item.name}`}
-                                    >
-                                        −
-                                    </button>
-                                    <span style={{ minWidth: 28, textAlign: "center" }}>x{item.quantity}</span>
-                                    <button
-                                        style={shared.smallButton}
-                                        disabled={busy}
-                                        onClick={() => void run(() => api.patchShoppingItem(item.id, { quantity: item.quantity + 1 }))}
-                                        aria-label={`Aumentar cantidad de ${item.name}`}
-                                    >
-                                        +
-                                    </button>
-                                </span>
-                                <button
-                                    style={{ ...shared.smallButton, color: "var(--color-danger)" }}
-                                    disabled={busy}
-                                    onClick={() => void run(() => api.deleteShoppingItem(item.id))}
-                                    aria-label={`Eliminar ${item.name}`}
-                                >
-                                    Eliminar
-                                </button>
+
+                        {grouped.map(([category, categoryItems]) => (
+                            <div key={category}>
+                                <div className="group-label">{category}</div>
+                                {categoryItems.map((item) => (
+                                    <div key={item.id} className={`list-row${item.checked ? " is-checked" : ""}`}>
+                                        <input
+                                            type="checkbox"
+                                            className="check"
+                                            checked={item.checked}
+                                            disabled={busy}
+                                            onChange={() => void run(() => api.patchShoppingItem(item.id, { checked: !item.checked }))}
+                                            aria-label={`Marcar ${item.name}`}
+                                        />
+                                        <div className="row-main">
+                                            <div className="row-title">{item.name}</div>
+                                        </div>
+                                        <div className="stepper" role="group" aria-label={`Cantidad de ${item.name}`}>
+                                            <button
+                                                disabled={busy || item.quantity <= 1}
+                                                onClick={() => void run(() => api.patchShoppingItem(item.id, { quantity: item.quantity - 1 }))}
+                                                aria-label={`Reducir cantidad de ${item.name}`}
+                                            >
+                                                <Icon name="minus" size={15} />
+                                            </button>
+                                            <span className="stepper-value">{item.quantity}</span>
+                                            <button
+                                                disabled={busy}
+                                                onClick={() => void run(() => api.patchShoppingItem(item.id, { quantity: item.quantity + 1 }))}
+                                                aria-label={`Aumentar cantidad de ${item.name}`}
+                                            >
+                                                <Icon name="plus" size={15} />
+                                            </button>
+                                        </div>
+                                        <button
+                                            className="btn btn-ghost btn-sm icon-btn"
+                                            disabled={busy}
+                                            onClick={() => void run(() => api.deleteShoppingItem(item.id))}
+                                            aria-label={`Eliminar ${item.name}`}
+                                            title="Eliminar"
+                                        >
+                                            <Icon name="trash" size={17} />
+                                        </button>
+                                    </div>
+                                ))}
                             </div>
                         ))}
-                    </div>
-                ))}
-                {items.data !== null && items.data.length === 0 && <div style={shared.empty}>La lista está vacía.</div>}
+                    </>
+                )}
             </div>
 
-            <div style={shared.card}>
-                <div style={{ fontSize: 13, color: "var(--color-text-secondary)", marginBottom: 8 }}>Plantillas</div>
-                {(templates.data ?? []).map((t) => (
-                    <div key={t.id} style={{ borderBottom: "1px solid var(--color-border)" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", fontSize: 14 }}>
-                            <span style={{ flex: 1, cursor: "pointer" }} onClick={() => toggleExpand(t.id)}>
-                                {t.name}
-                            </span>
-                            <span style={{ color: "var(--color-text-secondary)" }}>{t.itemCount} items</span>
-                            <button
-                                style={shared.smallButton}
-                                disabled={busy}
-                                onClick={() => void run(() => api.applyShoppingTemplate(t.id))}
-                            >
-                                Aplicar
-                            </button>
-                            <button
-                                style={{ ...shared.smallButton, color: "var(--color-danger)" }}
-                                disabled={busy}
-                                onClick={() => handleDeleteTemplate(t.id, t.name)}
-                            >
-                                Eliminar
-                            </button>
-                        </div>
-                        {expanded === t.id && (
-                            <div style={{ padding: "0 0 10px 12px", fontSize: 13, color: "var(--color-text-secondary)" }}>
-                                {detail ? detail.items.map((i, idx) => <div key={idx}>{i.name} x{i.quantity}</div>) : "Cargando…"}
+            <div className="card flush">
+                <div className="group-label" style={{ paddingTop: 16 }}>
+                    Plantillas
+                </div>
+                {templates.data !== null && templates.data.length === 0 ? (
+                    <EmptyState icon="bookmark" title="Sin plantillas" text="Guarda la lista actual como plantilla para reutilizarla otra semana." />
+                ) : (
+                    (templates.data ?? []).map((t) => (
+                        <div key={t.id} style={{ borderBottom: "1px solid var(--color-border-soft)" }}>
+                            <div className="list-row" style={{ borderBottom: "none" }}>
+                                <button
+                                    className="row-main"
+                                    style={{ background: "none", border: "none", padding: 0, textAlign: "left", cursor: "pointer" }}
+                                    onClick={() => void toggleExpand(t.id)}
+                                    aria-expanded={expanded === t.id}
+                                >
+                                    <div className="row-title">{t.name}</div>
+                                    <div className="row-sub">{t.itemCount} artículo{t.itemCount === 1 ? "" : "s"}</div>
+                                </button>
+                                <div className="row-actions">
+                                    <button className="btn btn-sm btn-primary" disabled={busy} onClick={() => void run(() => api.applyShoppingTemplate(t.id))}>
+                                        Aplicar
+                                    </button>
+                                    <button
+                                        className="btn btn-ghost btn-sm icon-btn"
+                                        disabled={busy}
+                                        onClick={() => handleDeleteTemplate(t.id, t.name)}
+                                        aria-label={`Eliminar plantilla ${t.name}`}
+                                        title="Eliminar"
+                                    >
+                                        <Icon name="trash" size={17} />
+                                    </button>
+                                </div>
                             </div>
-                        )}
-                    </div>
-                ))}
-                {templates.data !== null && templates.data.length === 0 && <div style={shared.empty}>No hay plantillas guardadas.</div>}
+                            {expanded === t.id && (
+                                <div style={{ padding: "0 16px 14px 16px", fontSize: 13, color: "var(--color-text-secondary)", display: "flex", flexWrap: "wrap", gap: 6 }}>
+                                    {detail ? detail.items.map((i, idx) => <span key={idx} className="badge">{i.name} × {i.quantity}</span>) : "Cargando…"}
+                                </div>
+                            )}
+                        </div>
+                    ))
+                )}
             </div>
         </div>
     );
