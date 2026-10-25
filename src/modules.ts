@@ -1,15 +1,17 @@
 import type { IconName } from "./components/Icon";
 
 /** Módulos del Hub (mismos ids que ModulesEndpoints.AllModules en la API y que la app Android). */
-export type ModuleId = "carlocator" | "shopping" | "destinations" | "woffu";
+export type ModuleId = "carlocator" | "shopping" | "destinations" | "woffu" | "deadlines" | "trips";
 
-export type Tab = "devices" | "carlogs" | "shopping" | "destinations" | "woffu" | "settings";
+export type Tab = "devices" | "carlogs" | "shopping" | "destinations" | "woffu" | "deadlines" | "trips" | "settings";
 
 export const MODULES: { id: ModuleId; label: string; description: string; shared: boolean; icon: IconName }[] = [
     { id: "carlocator", label: "BluetoothLocator", description: "Dispositivos Bluetooth y su actividad", shared: false, icon: "bluetooth" },
     { id: "shopping", label: "Lista de la compra", description: "Compartida con todos los usuarios", shared: true, icon: "cart" },
     { id: "destinations", label: "Destinos", description: "Compartidos con todos los usuarios", shared: true, icon: "pin" },
     { id: "woffu", label: "WoffuManager", description: "Fichajes y diario de Woffu", shared: false, icon: "briefcase" },
+    { id: "deadlines", label: "Vencimientos", description: "Vencimientos y recordatorios con aviso en el móvil", shared: false, icon: "bell" },
+    { id: "trips", label: "Viajes", description: "Itinerario y equipaje, compartidos con todos los usuarios", shared: true, icon: "plane" },
 ];
 
 export interface TabInfo {
@@ -27,6 +29,8 @@ export const MODULE_TABS: Record<ModuleId, TabInfo[]> = {
     shopping: [{ id: "shopping", label: "Lista de la compra", icon: "cart" }],
     destinations: [{ id: "destinations", label: "Destinos", icon: "pin" }],
     woffu: [{ id: "woffu", label: "WoffuManager", icon: "briefcase" }],
+    deadlines: [{ id: "deadlines", label: "Vencimientos", icon: "bell" }],
+    trips: [{ id: "trips", label: "Viajes", icon: "plane" }],
 };
 
 export const SETTINGS_TAB: TabInfo = { id: "settings", label: "Ajustes", icon: "sliders" };

@@ -79,6 +79,88 @@ export interface Destination {
     visited: boolean;
 }
 
+export type DeadlineRepeat = "none" | "monthly" | "yearly";
+
+/** Vencimiento de un usuario. `dueDate` es una fecha "yyyy-MM-dd" (sin hora ni zona). */
+export interface Deadline {
+    id: number;
+    title: string;
+    dueDate: string;
+    remindDaysBefore: number;
+    repeat: DeadlineRepeat;
+    category: string | null;
+    note: string | null;
+    done: boolean;
+    createdAt: number;
+}
+
+/** Campos editables de un vencimiento (los mismos al crear y al modificar). */
+export interface DeadlineInput {
+    title: string;
+    dueDate: string;
+    remindDaysBefore: number;
+    repeat: DeadlineRepeat;
+    category: string;
+    note: string;
+}
+
+export interface Trip {
+    id: number;
+    name: string;
+    destination: string;
+    startDate: string;
+    endDate: string;
+    note: string | null;
+    createdAt: number;
+    stopCount: number;
+    packingCount: number;
+    packingChecked: number;
+}
+
+export interface TripStop {
+    id: number;
+    day: string;
+    /** "HH:mm" o null si no tiene hora. */
+    time: string | null;
+    title: string;
+    place: string | null;
+    note: string | null;
+}
+
+export interface TripPackingItem {
+    id: number;
+    name: string;
+    checked: boolean;
+}
+
+export interface TripDetail {
+    id: number;
+    name: string;
+    destination: string;
+    startDate: string;
+    endDate: string;
+    note: string | null;
+    createdAt: number;
+    stops: TripStop[];
+    packing: TripPackingItem[];
+}
+
+export interface TripInput {
+    name: string;
+    destination: string;
+    startDate: string;
+    endDate: string;
+    note: string;
+}
+
+export interface TripStopInput {
+    title: string;
+    day: string;
+    time: string;
+    place: string;
+    note: string;
+}
+
 export interface AuthResponse {
     token: string;
     user: { id: number; username: string };
