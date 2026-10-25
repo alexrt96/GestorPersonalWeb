@@ -8,6 +8,7 @@ import { Icon } from "../components/Icon";
 import { daysBetween, formatDay, formatRange } from "../components/shared";
 import { TripForm } from "./TripForm";
 import { TripStopView } from "./TripStopView";
+import { navigate } from "../hooks/useRoute";
 
 /** Formulario común de alta y edición de una parada del itinerario. */
 function StopForm({
@@ -107,7 +108,7 @@ function groupByDay(stops: TripStop[]): { day: string; stops: TripStop[] }[] {
     return groups;
 }
 
-export function TripDetailView({ tripId, onBack }: { tripId: number; onBack: () => void }) {
+export function TripDetailView({ tripId, stopId, onBack }: { tripId: number; stopId: number | null; onBack: () => void }) {
     const { data, error, loading, refresh } = usePolling(() => api.trip(tripId), 30_000);
     const [busy, setBusy] = useState(false);
     const [actionError, setActionError] = useState<string | null>(null);
@@ -115,7 +116,6 @@ export function TripDetailView({ tripId, onBack }: { tripId: number; onBack: () 
     const [editingStopId, setEditingStopId] = useState<number | null>(null);
     const [stopFormKey, setStopFormKey] = useState(0);
     const [packingName, setPackingName] = useState("");
-    const [openStopId, setOpenStopId] = useState<number | null>(null);
     // Varios lugares encajan con el texto escrito: se elige cuál guardar (o guardar la parada sin mapa).
     const [choices, setChoices] = useState<{ previous: TripStop | null; input: TripStopInput; places: PlaceCandidate[] } | null>(null);
 
@@ -178,9 +178,17 @@ export function TripDetailView({ tripId, onBack }: { tripId: number; onBack: () 
         setChoices({ previous, input, places });
     }
 
-    const openStop = openStopId !== null ? trip.stops.find((s) => s.id === openStopId) : undefined;
-    if (openStopId !== null) {
-        return <TripStopView trip={trip} stop={openStop} onBack={() => setOpenStopId(null)} onOpen={setOpenStopId} />;
+    // La parada abierta viene de la URL (`#/trips/2/stops/17`); anterior/siguiente sustituyen la entrada del historial,
+    // así "atrás" vuelve al viaje y no recorre todas las paradas vistas.
+    if (stopId !== null) {
+        return (
+            <TripStopView
+                trip={trip}
+                stop={trip.stops.find((s) => s.id === stopId)}
+                onBack={() => navigate(`/trips/${trip.id}`)}
+                onOpen={(id) => navigate(`/trips/${trip.id}/stops/${id}`, true)}
+            />
+        );
     }
 
     const totalDays = daysBetween(trip.startDate, trip.endDate) + 1;
@@ -324,7 +332,7 @@ export function TripDetailView({ tripId, onBack }: { tripId: number; onBack: () 
                                             />
                                         </div>
                                     ) : (
-                                        <div key={s.id} className="list-row clickable row-wrap" onClick={() => setOpenStopId(s.id)}>
+                                        <div key={s.id} className="list-row clickable row-wrap" onClick={() => navigate(`/trips/${trip.id}/stops/${s.id}`)}>
                                             <span className="badge badge-accent">{s.time ?? "—"}</span>
                                             <div className="row-main">
                                                 <div className="row-title">
