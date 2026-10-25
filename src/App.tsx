@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiKeyGate } from "./components/ApiKeyGate";
 import { LoginGate } from "./components/LoginGate";
 import { getStoredCredentials, getStoredSession, clearCredentials, clearSession } from "./api/config";
@@ -18,6 +18,8 @@ export default function App() {
     const [username, setUsername] = useState<string | null>(() => getStoredSession()?.username ?? null);
     const [modules, setModules] = useState<ModuleSettings | null>(null);
     const [tab, setTab] = useState<Tab | null>(null);
+    const [menuOpen, setMenuOpen] = useState(false);
+    const headerRef = useRef<HTMLElement>(null);
 
     const signOutLocally = useCallback(() => {
         clearSession();
@@ -29,6 +31,23 @@ export default function App() {
         setUnauthorizedHandler(signOutLocally);
         return () => setUnauthorizedHandler(null);
     }, [signOutLocally]);
+
+    // Menú desplegable (móvil): se cierra con Escape o al pulsar fuera de la cabecera.
+    useEffect(() => {
+        if (!menuOpen) return;
+        const onPointerDown = (e: PointerEvent) => {
+            if (headerRef.current && !headerRef.current.contains(e.target as Node)) setMenuOpen(false);
+        };
+        const onKeyDown = (e: KeyboardEvent) => {
+            if (e.key === "Escape") setMenuOpen(false);
+        };
+        document.addEventListener("pointerdown", onPointerDown);
+        document.addEventListener("keydown", onKeyDown);
+        return () => {
+            document.removeEventListener("pointerdown", onPointerDown);
+            document.removeEventListener("keydown", onKeyDown);
+        };
+    }, [menuOpen]);
 
     // Al haber sesión se cargan los módulos del usuario; si falla, se muestran todos (el valor por defecto).
     useEffect(() => {
@@ -78,25 +97,43 @@ export default function App() {
 
     return (
         <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
-            <header className="app-header">
+            <header className="app-header" ref={headerRef}>
                 <strong className="app-brand">GestorPersonal</strong>
-                <nav className="app-nav">
-                    {visibleTabs.map((t) => (
-                        <button
-                            key={t.id}
-                            className={`app-tab${activeTab === t.id ? " active" : ""}`}
-                            onClick={() => setTab(t.id)}
-                        >
-                            {t.label}
+                {/* Solo visible en móvil: muestra la pestaña actual y abre el menú desplegable. */}
+                <button
+                    className="app-menu-btn"
+                    aria-expanded={menuOpen}
+                    aria-controls="app-menu"
+                    onClick={() => setMenuOpen((open) => !open)}
+                >
+                    <span className="app-menu-label">{visibleTabs.find((t) => t.id === activeTab)?.label}</span>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+                        {menuOpen ? <path d="M6 6l12 12M18 6L6 18" /> : <path d="M4 7h16M4 12h16M4 17h16" />}
+                    </svg>
+                </button>
+                {/* En escritorio es transparente al layout (display: contents); en móvil es el desplegable. */}
+                <div id="app-menu" className={`app-menu${menuOpen ? " open" : ""}`}>
+                    <nav className="app-nav">
+                        {visibleTabs.map((t) => (
+                            <button
+                                key={t.id}
+                                className={`app-tab${activeTab === t.id ? " active" : ""}`}
+                                onClick={() => {
+                                    setTab(t.id);
+                                    setMenuOpen(false);
+                                }}
+                            >
+                                {t.label}
+                            </button>
+                        ))}
+                    </nav>
+                    <span className="app-user">
+                        <span className="app-user-name">{username}</span>
+                        <button className="app-logout" onClick={handleLogout}>
+                            Cerrar sesión
                         </button>
-                    ))}
-                </nav>
-                <span className="app-user">
-                    <span className="app-user-name">{username}</span>
-                    <button className="app-logout" onClick={handleLogout}>
-                        Cerrar sesión
-                    </button>
-                </span>
+                    </span>
+                </div>
             </header>
 
             <main style={{ flex: 1 }}>
