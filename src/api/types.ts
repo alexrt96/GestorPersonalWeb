@@ -125,6 +125,9 @@ export interface TripStop {
     title: string;
     place: string | null;
     note: string | null;
+    /** Ubicación en el mapa (ambas o ninguna). */
+    latitude: number | null;
+    longitude: number | null;
 }
 
 export interface TripPackingItem {
