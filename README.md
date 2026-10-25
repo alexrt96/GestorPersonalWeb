@@ -1,32 +1,31 @@
-# React + TypeScript + Vite
+# GestorPersonalWeb
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Cliente web (React 19 + TypeScript + Vite) de **GestorPersonal**. Habla con la misma API que la app Android (`GestorPersonalApi`, ver su README para el contrato REST) y muestra solo los módulos que el usuario tiene activados (`/api/me/modules`, los mismos ids que la app).
 
-Currently, two official plugins are available:
+## Secciones
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+| Pestaña | Qué hace |
+|---|---|
+| Dispositivos / Actividad BT | **Solo lectura** de BluetoothLocator: dispositivos con su último punto en un mapa (Leaflet + OpenStreetMap) y diario de actividad. |
+| Lista de la compra | Lista compartida: añadir, marcar, cambiar cantidad, **editar nombre y categoría** (lápiz → edición en línea), borrar con **Deshacer** (barra inferior, 10 s), quitar marcados, plantillas (se guardan con la categoría de cada producto). Une duplicados (lo decide la API). Autocompleta el nombre con productos usados antes (y pone su categoría habitual). Se refresca cada 20 s y al volver a la pestaña. Detalle en `GestorPersonal/docs/modules/SHOPPINGLIST.md`. |
+| Destinos | Añadir un lugar por nombre: si hay varios resultados (Nominatim) se elige el correcto en una tarjeta; verlos en un mapa (los visitados en verde), **editar** nombre / nota / categoría (lápiz → edición en línea), marcarlos como **visitados** (casilla) y borrarlos. |
+| WoffuManager | Ajustes (token / userId), diario mensual con detalle por día y "Arreglar día", y registro de actividad. La activación de la automatización se gestiona solo desde el móvil. |
+| Ajustes | Activar/desactivar módulos y cerrar sesión. |
 
-## React Compiler
+## Puesta en marcha
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```bash
+npm install
+npm run dev      # http://127.0.0.1:5173
+npm run build    # tsc -b + vite build
+npm run lint     # oxlint
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+Al abrirla pide la **URL de la API** y la **API key** (se guardan en `localStorage`) y después usuario y contraseña (sesión con `Authorization: Bearer`). Un `401` cierra la sesión.
+
+## Estructura
+
+- `src/api/` — `client.ts` (todas las llamadas), `types.ts`, `config.ts` (credenciales y sesión en `localStorage`).
+- `src/hooks/usePolling.ts` — carga datos con refresco manual y por intervalo; solo mientras la pestaña está visible, y refresca al instante al volver a ella.
+- `src/pages/` — una página por pestaña. `src/modules.ts` — módulos y pestañas. `src/components/` — `ui.tsx`, `Icon.tsx` (iconos de trazo en línea), `LoginGate`, `ApiKeyGate`.
+- `src/index.css` — sistema de diseño Nocturne (tokens en `:root`, tema oscuro igual que la app).

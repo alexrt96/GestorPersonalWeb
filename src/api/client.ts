@@ -4,10 +4,12 @@ import type {
     BlacklistEntry,
     CarLog,
     Destination,
+    PlaceCandidate,
     Device,
     DiaryMonth,
     ModuleSettings,
     ShoppingItem,
+    ShoppingSuggestion,
     ShoppingTemplate,
     ShoppingTemplateDetail,
     ShoppingTemplateItem,
@@ -129,12 +131,16 @@ export const api = {
         return request<CarLog[]>(`/api/logs${suffix}`);
     },
     shoppingItems: () => request<ShoppingItem[]>("/api/shopping/items"),
+    shoppingSuggestions: (q: string) =>
+        request<ShoppingSuggestion[]>(`/api/shopping/suggestions?q=${encodeURIComponent(q)}`),
     shoppingTemplates: () => request<ShoppingTemplate[]>("/api/shopping/templates"),
     shoppingTemplateDetail: (id: number) => request<ShoppingTemplateDetail>(`/api/shopping/templates/${id}`),
     addShoppingItem: (item: { name: string; quantity: number; category: string | null }) =>
         request<ShoppingItem>("/api/shopping/items", { method: "POST", body: JSON.stringify(item) }),
-    patchShoppingItem: (id: number, patch: { checked?: boolean; quantity?: number }) =>
+    patchShoppingItem: (id: number, patch: { checked?: boolean; quantity?: number; name?: string; category?: string }) =>
         request<void>(`/api/shopping/items/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
+    restoreShoppingItems: (items: Pick<ShoppingItem, "name" | "quantity" | "checked" | "createdAt" | "category">[]) =>
+        request<void>("/api/shopping/items/restore", { method: "POST", body: JSON.stringify(items) }),
     deleteShoppingItem: (id: number) => request<void>(`/api/shopping/items/${id}`, { method: "DELETE" }),
     clearCheckedShoppingItems: () => request<void>("/api/shopping/items/clear-checked", { method: "POST" }),
     createShoppingTemplate: (name: string, items: ShoppingTemplateItem[]) =>
@@ -144,8 +150,16 @@ export const api = {
         request<{ appliedItems: number }>(`/api/shopping/templates/${id}/apply`, { method: "POST" }),
 
     destinations: () => request<Destination[]>("/api/destinations"),
-    addDestination: (name: string) =>
-        request<Destination>("/api/destinations", { method: "POST", body: JSON.stringify({ name }) }),
+    searchPlaces: (q: string) => request<PlaceCandidate[]>(`/api/destinations/search?q=${encodeURIComponent(q)}`),
+    /** Con `place` se guarda ese lugar tal cual; sin él, la API geocodifica `name` y usa el primer resultado. */
+    addDestination: (name: string, place?: PlaceCandidate) =>
+        request<Destination>("/api/destinations", {
+            method: "POST",
+            body: JSON.stringify(place ? { name, displayName: place.displayName, latitude: place.latitude, longitude: place.longitude } : { name }),
+        }),
+    /** Una nota o categoría "" la borra. */
+    updateDestination: (id: number, patch: { name?: string; note?: string; category?: string; visited?: boolean }) =>
+        request<Destination>(`/api/destinations/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
     deleteDestination: (id: number) => request<void>(`/api/destinations/${id}`, { method: "DELETE" }),
 
     woffuLogs: (limit = 200) => request<WoffuLog[]>(`/api/woffu/logs?limit=${limit}`),

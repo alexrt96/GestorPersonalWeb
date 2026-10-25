@@ -35,7 +35,15 @@ export function usePolling<T>(fetcher: () => Promise<T>, intervalMs = 30_000): P
         const id = setInterval(() => {
             if (document.visibilityState === "visible") load();
         }, intervalMs);
-        return () => clearInterval(id);
+        // Al volver a la pestaña se refresca enseguida, sin esperar al siguiente intervalo (en segundo plano no hay polling).
+        const onVisible = () => {
+            if (document.visibilityState === "visible") load();
+        };
+        document.addEventListener("visibilitychange", onVisible);
+        return () => {
+            clearInterval(id);
+            document.removeEventListener("visibilitychange", onVisible);
+        };
     }, [load, intervalMs]);
 
     return { data, error, loading, refresh: load };
