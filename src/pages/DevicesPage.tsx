@@ -33,7 +33,7 @@ export function DevicesPage() {
 
             {error && <div style={shared.errorBox}>{error}</div>}
 
-            <div style={{ ...shared.card, padding: 0, overflow: "hidden", height: 380 }}>
+            <div style={{ ...shared.card, padding: 0, overflow: "hidden", height: "min(420px, 60vh)" }}>
                 <MapContainer center={center} zoom={located.length > 0 ? 12 : 5} style={{ height: "100%", width: "100%" }}>
                     <TileLayer
                         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'

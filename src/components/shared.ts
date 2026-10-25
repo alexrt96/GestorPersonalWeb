@@ -1,8 +1,8 @@
 import type { CSSProperties } from "react";
 
 export const shared: Record<string, CSSProperties> = {
-    page: { display: "flex", flexDirection: "column", gap: 16, padding: "20px 24px 40px" },
-    headerRow: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 },
+    page: { display: "flex", flexDirection: "column", gap: 16, padding: "20px var(--page-gutter) 40px" },
+    headerRow: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" },
     pageTitle: { margin: 0, fontSize: 18, fontWeight: 500 },
     refreshButton: {
         background: "transparent",
@@ -18,6 +18,7 @@ export const shared: Record<string, CSSProperties> = {
         border: "1px solid var(--color-border)",
         borderRadius: 12,
         padding: 16,
+        overflowX: "auto", // las tablas anchas se deslizan en móvil en vez de desbordar la página
     },
     table: { width: "100%", borderCollapse: "collapse", fontSize: 13 },
     th: {
