@@ -75,6 +75,19 @@ const PATHS = {
     bookmark: <path d="M6 3h12v18l-6-4-6 4V3z" />,
     bell: <path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0" />,
     plane: <path d="M17.8 19.2L16 11l3.5-3.5a2.1 2.1 0 0 0-3-3L13 8 4.8 6.2l-1.4 1.4 6.4 3.4-3.5 3.5-3.2-.5-1 1 4 2 2 4 1-1-.5-3.2 3.5-3.5 3.4 6.4 1.3-1.5z" />,
+    gift: (
+        <>
+            <rect x="3" y="8" width="18" height="4" rx="1" />
+            <path d="M5 12v9h14v-9M12 8v13M12 8S10.5 3 8 3a2.5 2.5 0 0 0 0 5h4zM12 8s1.5-5 4-5a2.5 2.5 0 0 1 0 5h-4z" />
+        </>
+    ),
+    lock: (
+        <>
+            <rect x="4" y="11" width="16" height="10" rx="2" />
+            <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+        </>
+    ),
+    external: <path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" />,
 } satisfies Record<string, ReactNode>;
 
 export type IconName = keyof typeof PATHS;

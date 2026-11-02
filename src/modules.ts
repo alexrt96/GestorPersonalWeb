@@ -1,9 +1,9 @@
 import type { IconName } from "./components/Icon";
 
 /** Módulos del Hub (mismos ids que ModulesEndpoints.AllModules en la API y que la app Android). */
-export type ModuleId = "carlocator" | "shopping" | "destinations" | "woffu" | "deadlines" | "trips";
+export type ModuleId = "carlocator" | "shopping" | "destinations" | "woffu" | "deadlines" | "trips" | "wishlist";
 
-export type Tab = "devices" | "carlogs" | "shopping" | "destinations" | "woffu" | "deadlines" | "trips" | "settings";
+export type Tab = "devices" | "carlogs" | "shopping" | "destinations" | "woffu" | "deadlines" | "trips" | "wishlist" | "settings";
 
 export const MODULES: { id: ModuleId; label: string; description: string; shared: boolean; icon: IconName }[] = [
     { id: "carlocator", label: "BluetoothLocator", description: "Dispositivos Bluetooth y su actividad", shared: false, icon: "bluetooth" },
@@ -12,6 +12,7 @@ export const MODULES: { id: ModuleId; label: string; description: string; shared
     { id: "woffu", label: "WoffuManager", description: "Fichajes y diario de Woffu", shared: false, icon: "briefcase" },
     { id: "deadlines", label: "Vencimientos", description: "Vencimientos y recordatorios con aviso en el móvil", shared: false, icon: "bell" },
     { id: "trips", label: "Viajes", description: "Itinerario y equipaje, compartidos con todos los usuarios", shared: true, icon: "plane" },
+    { id: "wishlist", label: "Reyes Magos", description: "Tu carta (la ven todos) y una lista oculta solo para ti", shared: false, icon: "gift" },
 ];
 
 export interface TabInfo {
@@ -31,6 +32,7 @@ export const MODULE_TABS: Record<ModuleId, TabInfo[]> = {
     woffu: [{ id: "woffu", label: "WoffuManager", icon: "briefcase" }],
     deadlines: [{ id: "deadlines", label: "Vencimientos", icon: "bell" }],
     trips: [{ id: "trips", label: "Viajes", icon: "plane" }],
+    wishlist: [{ id: "wishlist", label: "Reyes Magos", icon: "gift" }],
 };
 
 export const SETTINGS_TAB: TabInfo = { id: "settings", label: "Ajustes", icon: "sliders" };

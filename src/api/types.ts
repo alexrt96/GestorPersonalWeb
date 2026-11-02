@@ -170,6 +170,48 @@ export interface AuthResponse {
 }
 
 /** Módulos activables por usuario: id de módulo -> activado. */
+/** Deseo de la carta a los Reyes de un usuario: lo ven todos, solo lo edita su dueño. */
+export interface WishlistItem {
+    id: number;
+    title: string;
+    url: string | null;
+    price: number | null;
+    note: string | null;
+    createdAt: number;
+}
+
+/** Carta de un usuario. `isMe` = la del usuario de la sesión (la única editable). */
+export interface PersonWishlist {
+    userId: number;
+    username: string;
+    isMe: boolean;
+    items: WishlistItem[];
+}
+
+/** Idea de regalo de la lista oculta: solo la ve quien la apuntó. `recipientName` es texto libre. */
+export interface GiftIdea {
+    id: number;
+    recipientName: string;
+    title: string;
+    url: string | null;
+    price: number | null;
+    note: string | null;
+    bought: boolean;
+    createdAt: number;
+}
+
+/** Campos editables de un deseo. Enlace o nota "" lo borra; precio null lo quita. */
+export interface WishlistItemInput {
+    title: string;
+    url: string;
+    price: number | null;
+    note: string;
+}
+
+export interface GiftIdeaInput extends WishlistItemInput {
+    recipientName: string;
+}
+
 export type ModuleSettings = Record<string, boolean>;
 
 export interface WoffuLog {
