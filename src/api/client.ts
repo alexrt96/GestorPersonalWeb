@@ -24,6 +24,11 @@ import type {
     WoffuLog,
     WoffuSettings,
     WorkdaySlotsInfo,
+    PersonWishlist,
+    WishlistItem,
+    WishlistItemInput,
+    GiftIdea,
+    GiftIdeaInput,
 } from "./types";
 
 export class ApiError extends Error {
@@ -179,6 +184,31 @@ export const api = {
     /** Sin repetición lo cierra; con repetición lo reabre en la siguiente fecha. */
     completeDeadline: (id: number) => request<Deadline>(`/api/deadlines/${id}/complete`, { method: "POST" }),
     deleteDeadline: (id: number) => request<void>(`/api/deadlines/${id}`, { method: "DELETE" }),
+
+    /** Cartas de todos los usuarios (primero la propia). */
+    wishlists: () => request<PersonWishlist[]>("/api/wishlist"),
+    addWishlistItem: (input: WishlistItemInput) =>
+        request<WishlistItem>("/api/wishlist/items", { method: "POST", body: JSON.stringify(input) }),
+    /** Se envían todos los campos: enlace o nota "" lo borra y precio null lo quita. */
+    updateWishlistItem: (id: number, input: WishlistItemInput) =>
+        request<WishlistItem>(`/api/wishlist/items/${id}`, {
+            method: "PATCH",
+            body: JSON.stringify({ ...input, clearPrice: input.price === null }),
+        }),
+    deleteWishlistItem: (id: number) => request<void>(`/api/wishlist/items/${id}`, { method: "DELETE" }),
+
+    /** Lista oculta del usuario de la sesión (la API nunca devuelve la de otro). */
+    giftIdeas: () => request<GiftIdea[]>("/api/wishlist/ideas"),
+    addGiftIdea: (input: GiftIdeaInput) =>
+        request<GiftIdea>("/api/wishlist/ideas", { method: "POST", body: JSON.stringify(input) }),
+    updateGiftIdea: (id: number, input: GiftIdeaInput) =>
+        request<GiftIdea>(`/api/wishlist/ideas/${id}`, {
+            method: "PATCH",
+            body: JSON.stringify({ ...input, clearPrice: input.price === null }),
+        }),
+    setGiftIdeaBought: (id: number, bought: boolean) =>
+        request<GiftIdea>(`/api/wishlist/ideas/${id}`, { method: "PATCH", body: JSON.stringify({ bought }) }),
+    deleteGiftIdea: (id: number) => request<void>(`/api/wishlist/ideas/${id}`, { method: "DELETE" }),
 
     trips: () => request<Trip[]>("/api/trips"),
     trip: (id: number) => request<TripDetail>(`/api/trips/${id}`),
