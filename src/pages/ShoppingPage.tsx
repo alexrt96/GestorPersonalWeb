@@ -5,6 +5,7 @@ import { usePolling } from "../hooks/usePolling";
 import type { ShoppingItem, ShoppingSuggestion, ShoppingTemplateDetail } from "../api/types";
 import { Alert, EmptyState, PageHeader, RefreshButton, SkeletonRows } from "../components/ui";
 import { Icon } from "../components/Icon";
+import { useConfirm } from "../components/ConfirmDialog";
 
 const CATEGORY_ORDER = ["Frescos", "Despensa", "Limpieza", "Bebidas", "Otros"];
 const NO_CATEGORY = "Sin categoría";
@@ -31,6 +32,7 @@ export function ShoppingPage() {
     const templates = usePolling(api.shoppingTemplates, 20_000);
     const [expanded, setExpanded] = useState<number | null>(null);
     const [detail, setDetail] = useState<ShoppingTemplateDetail | null>(null);
+    const [confirmDialog, confirm] = useConfirm();
 
     const [newName, setNewName] = useState("");
     const [newQuantity, setNewQuantity] = useState(1);
@@ -157,8 +159,9 @@ export function ShoppingPage() {
         void run(() => api.createShoppingTemplate(name, current.map((i) => ({ name: i.name, quantity: i.quantity, category: i.category }))));
     }
 
-    function handleDeleteTemplate(id: number, name: string) {
-        if (!window.confirm(`¿Eliminar la plantilla "${name}"?`)) return;
+    async function handleDeleteTemplate(id: number, name: string) {
+        const ok = await confirm({ title: `¿Eliminar la plantilla «${name}»?`, body: "La lista actual no cambia.", confirmLabel: "Eliminar", destructive: true });
+        if (!ok) return;
         void run(async () => {
             await api.deleteShoppingTemplate(id);
             if (expanded === id) {
@@ -175,6 +178,7 @@ export function ShoppingPage() {
 
     return (
         <div className="page">
+            {confirmDialog}
             <PageHeader
                 title="Lista de la compra"
                 subtitle={items.data ? `${all.length} artículo${all.length === 1 ? "" : "s"} · ${checkedCount} marcado${checkedCount === 1 ? "" : "s"} · compartida con todos` : "Compartida con todos los usuarios"}

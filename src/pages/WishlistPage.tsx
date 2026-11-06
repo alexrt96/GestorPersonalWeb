@@ -5,6 +5,7 @@ import { usePolling } from "../hooks/usePolling";
 import type { GiftIdea, GiftIdeaInput, WishlistItem, WishlistItemInput } from "../api/types";
 import { Alert, EmptyState, PageHeader, RefreshButton, SkeletonRows } from "../components/ui";
 import { Icon } from "../components/Icon";
+import { useConfirm } from "../components/ConfirmDialog";
 
 const priceFormat = new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" });
 
@@ -190,6 +191,7 @@ export function WishlistPage() {
     const [busy, setBusy] = useState(false);
     const [actionError, setActionError] = useState<string | null>(null);
     const [editing, setEditing] = useState<string | null>(null);
+    const [confirmDialog, confirm] = useConfirm();
     // Cambia al añadir para vaciar el formulario de alta (se remonta con otra key).
     const [formKey, setFormKey] = useState(0);
 
@@ -222,8 +224,9 @@ export function WishlistPage() {
             <button
                 className="btn btn-ghost btn-sm icon-btn"
                 disabled={busy}
-                onClick={() => {
-                    if (!window.confirm(`¿Eliminar "${title}"?`)) return;
+                onClick={async () => {
+                    const ok = await confirm({ title: `¿Eliminar «${title}»?`, confirmLabel: "Eliminar", destructive: true });
+                    if (!ok) return;
                     onDelete();
                 }}
                 aria-label={`Eliminar ${title}`}
@@ -348,6 +351,7 @@ export function WishlistPage() {
                 actions={<RefreshButton onClick={refreshAll} loading={wishlists.loading || ideas.loading} disabled={busy} />}
             />
 
+            {confirmDialog}
             {error && <Alert>{error}</Alert>}
             {actionError && <Alert>{actionError}</Alert>}
 

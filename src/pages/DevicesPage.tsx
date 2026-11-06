@@ -1,40 +1,38 @@
-import { useEffect, useState } from "react";
-import { MapContainer, Marker, Popup, TileLayer, useMap } from "react-leaflet";
-import L from "leaflet";
-import markerIcon from "leaflet/dist/images/marker-icon.png";
-import markerShadow from "leaflet/dist/images/marker-shadow.png";
-import "leaflet/dist/leaflet.css";
+import { useRef, useState } from "react";
 import { api } from "../api/client";
 import { usePolling } from "../hooks/usePolling";
-import type { Device } from "../api/types";
 import { formatDate } from "../components/shared";
 import { EmptyState, PageHeader, RefreshButton, Alert, SkeletonRows } from "../components/ui";
 import { Icon } from "../components/Icon";
-
-const defaultIcon = L.icon({
-    iconUrl: markerIcon,
-    shadowUrl: markerShadow,
-    iconSize: [25, 41],
-    iconAnchor: [12, 41],
-    popupAnchor: [1, -34],
-});
-
-/** Reencuadra el mapa sobre los dispositivos indicados cuando cambian. */
-function FitTo({ devices }: { devices: Device[] }) {
-    const map = useMap();
-    useEffect(() => {
-        if (devices.length === 0) return;
-        const bounds = L.latLngBounds(devices.map((d) => [d.point!.latitude, d.point!.longitude] as [number, number]));
-        map.fitBounds(bounds, { padding: [40, 40], maxZoom: 15 });
-    }, [devices, map]);
-    return null;
-}
+import { MapView } from "../components/MapView";
+import type { MapPoint } from "../components/MapView";
 
 export function DevicesPage() {
     const { data: devices, error, loading, refresh } = usePolling(api.devices, 20_000);
-    const [focused, setFocused] = useState<Device | null>(null);
+    // Dispositivo seleccionado: el mapa vuela hasta su punto y la fila queda resaltada.
+    const [selectedId, setSelectedId] = useState<string | null>(null);
+    const mapRef = useRef<HTMLDivElement>(null);
     const list = devices ?? [];
     const located = list.filter((d) => d.point !== null);
+    const points: MapPoint[] = located.map((d) => ({
+        id: d.id,
+        lat: d.point!.latitude,
+        lng: d.point!.longitude,
+        popup: (
+            <div className="map-popup">
+                <strong>{d.name}</strong>
+                <span>Guardado {formatDate(d.point!.timestamp)}</span>
+            </div>
+        ),
+    }));
+
+    function select(id: string) {
+        setSelectedId(id);
+        const rect = mapRef.current?.getBoundingClientRect();
+        if (rect && (rect.top < 0 || rect.bottom > window.innerHeight)) {
+            mapRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+    }
 
     return (
         <div className="page">
@@ -46,23 +44,8 @@ export function DevicesPage() {
 
             {error && <Alert>{error}</Alert>}
 
-            <div className="card map-card">
-                <MapContainer center={[40.4168, -3.7038]} zoom={5} scrollWheelZoom={false}>
-                    <TileLayer
-                        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-                        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                    />
-                    <FitTo devices={focused?.point ? [focused] : located} />
-                    {located.map((d) => (
-                        <Marker key={d.id} position={[d.point!.latitude, d.point!.longitude]} icon={defaultIcon}>
-                            <Popup>
-                                <strong>{d.name}</strong>
-                                <br />
-                                {formatDate(d.point!.timestamp)}
-                            </Popup>
-                        </Marker>
-                    ))}
-                </MapContainer>
+            <div className="card map-card" ref={mapRef}>
+                <MapView points={points} selectedId={selectedId} onSelect={(id) => setSelectedId(id as string | null)} fitMaxZoom={15} focusZoom={16} />
             </div>
 
             <div className="card flush">
@@ -76,7 +59,7 @@ export function DevicesPage() {
                     />
                 ) : (
                     list.map((d) => (
-                        <div key={d.id} className="list-row row-wrap">
+                        <div key={d.id} className={`list-row row-wrap${selectedId === d.id ? " is-selected" : ""}`}>
                             <span className="row-icon">
                                 <Icon name="bluetooth" />
                             </span>
@@ -91,14 +74,11 @@ export function DevicesPage() {
                                     <>
                                         <span className="badge badge-success">{formatDate(d.point.timestamp)}</span>
                                         <button
-                                            className="btn btn-sm"
-                                            onClick={() => {
-                                                setFocused(focused?.id === d.id ? null : d);
-                                                window.scrollTo({ top: 0, behavior: "smooth" });
-                                            }}
+                                            className={`btn btn-sm${selectedId === d.id ? " btn-primary" : ""}`}
+                                            onClick={() => (selectedId === d.id ? setSelectedId(null) : select(d.id))}
                                         >
                                             <Icon name="pin" size={15} />
-                                            {focused?.id === d.id ? "Todos" : "Ver"}
+                                            {selectedId === d.id ? "Ver todos" : "Ver"}
                                         </button>
                                     </>
                                 ) : (
