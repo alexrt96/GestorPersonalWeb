@@ -21,13 +21,14 @@ function tripState(t: Trip): "ongoing" | "upcoming" | "past" {
     return "ongoing";
 }
 
-/** Rutas: `#/trips` (lista), `#/trips/2` (viaje) y `#/trips/2/stops/17` (parada). */
+/** Rutas: `#/trips` (lista), `#/trips/2` (viaje, pestaña Itinerario), `#/trips/2/packing` (pestaña Equipaje) y `#/trips/2/stops/17` (parada). */
 export function TripsPage() {
     const route = useRoute();
     const tripId = routeId(route[1]);
     const stopId = route[2] === "stops" ? routeId(route[3]) : null;
+    const tab = route[2] === "packing" ? "packing" : "itinerary";
     if (tripId !== null) {
-        return <TripDetailView key={tripId} tripId={tripId} stopId={stopId} onBack={() => navigate("/trips")} />;
+        return <TripDetailView key={tripId} tripId={tripId} stopId={stopId} tab={tab} onBack={() => navigate("/trips")} />;
     }
     return <TripsList onOpen={(id) => navigate(`/trips/${id}`)} />;
 }

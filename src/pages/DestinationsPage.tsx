@@ -1,47 +1,16 @@
-import { useEffect, useState } from "react";
+import { useRef, useState } from "react";
 import type { FormEvent } from "react";
-import { MapContainer, Marker, Popup, TileLayer, useMap } from "react-leaflet";
-import L from "leaflet";
-import markerIcon from "leaflet/dist/images/marker-icon.png";
-import markerShadow from "leaflet/dist/images/marker-shadow.png";
-import "leaflet/dist/leaflet.css";
 import { api, ApiError } from "../api/client";
 import { usePolling } from "../hooks/usePolling";
 import type { Destination, PlaceCandidate } from "../api/types";
 import { Alert, EmptyState, PageHeader, RefreshButton, SkeletonRows } from "../components/ui";
 import { Icon } from "../components/Icon";
+import { MapView } from "../components/MapView";
+import type { MapPoint } from "../components/MapView";
+import { useConfirm } from "../components/ConfirmDialog";
 
 /** Categorías que se pueden asignar a un destino (la API guarda el texto tal cual). */
 const CATEGORIES = ["Restaurante", "Viaje", "Ocio", "Compras", "Otros"];
-
-const defaultIcon = L.icon({
-    iconUrl: markerIcon,
-    shadowUrl: markerShadow,
-    iconSize: [25, 41],
-    iconAnchor: [12, 41],
-    popupAnchor: [1, -34],
-});
-
-/** Marcador de los destinos ya visitados: el mismo icono, teñido de verde por CSS (.marker-visited). */
-const visitedIcon = L.icon({
-    iconUrl: markerIcon,
-    shadowUrl: markerShadow,
-    iconSize: [25, 41],
-    iconAnchor: [12, 41],
-    popupAnchor: [1, -34],
-    className: "marker-visited",
-});
-
-/** Reencuadra el mapa para que se vean los destinos indicados cada vez que cambian. */
-function FitToDestinations({ destinations }: { destinations: Destination[] }) {
-    const map = useMap();
-    useEffect(() => {
-        if (destinations.length === 0) return;
-        const bounds = L.latLngBounds(destinations.map((d) => [d.latitude, d.longitude] as [number, number]));
-        map.fitBounds(bounds, { padding: [40, 40], maxZoom: 13 });
-    }, [destinations, map]);
-    return null;
-}
 
 export function DestinationsPage() {
     const { data, error, loading, refresh } = usePolling(api.destinations, 30_000);
@@ -49,7 +18,10 @@ export function DestinationsPage() {
     const [name, setName] = useState("");
     const [busy, setBusy] = useState(false);
     const [actionError, setActionError] = useState<string | null>(null);
-    const [focused, setFocused] = useState<Destination | null>(null);
+    // Destino seleccionado: el mapa vuela hasta él y abre su globo; la fila queda resaltada.
+    const [selectedId, setSelectedId] = useState<number | null>(null);
+    const mapRef = useRef<HTMLDivElement>(null);
+    const [confirmDialog, confirm] = useConfirm();
     // Edición en línea de un destino (nombre, nota y categoría).
     const [editingId, setEditingId] = useState<number | null>(null);
     const [editName, setEditName] = useState("");
@@ -107,10 +79,32 @@ export function DestinationsPage() {
         const created = await api.addDestination(query, place);
         setName("");
         setChoices(null);
-        setFocused(created);
+        setSelectedId(created.id);
     }
 
-    const visible = focused ? [focused] : destinations;
+    function select(id: number) {
+        setSelectedId(id);
+        // Si el mapa no se ve entero (lista larga), se sube hasta él.
+        const rect = mapRef.current?.getBoundingClientRect();
+        if (rect && (rect.top < 0 || rect.bottom > window.innerHeight)) {
+            mapRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+    }
+
+    const points: MapPoint[] = destinations.map((d) => ({
+        id: d.id,
+        lat: d.latitude,
+        lng: d.longitude,
+        tone: d.visited ? "success" : "accent",
+        popup: (
+            <div className="map-popup">
+                <strong>{d.name}</strong>
+                <span>{d.displayName}</span>
+                {(d.category || d.note) && <span className="map-popup-meta">{[d.category, d.note].filter(Boolean).join(" · ")}</span>}
+                {d.visited && <span className="badge badge-success">Visitado</span>}
+            </div>
+        ),
+    }));
 
     return (
         <div className="page">
@@ -120,6 +114,7 @@ export function DestinationsPage() {
                 actions={<RefreshButton onClick={refresh} loading={loading} disabled={busy} />}
             />
 
+            {confirmDialog}
             {error && <Alert>{error}</Alert>}
             {actionError && <Alert>{actionError}</Alert>}
 
@@ -172,29 +167,8 @@ export function DestinationsPage() {
                 </div>
             )}
 
-            <div className="card map-card">
-                <MapContainer center={[40.4168, -3.7038]} zoom={5} scrollWheelZoom={false}>
-                    <TileLayer
-                        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-                        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                    />
-                    <FitToDestinations destinations={visible} />
-                    {destinations.map((d) => (
-                        <Marker key={d.id} position={[d.latitude, d.longitude]} icon={d.visited ? visitedIcon : defaultIcon}>
-                            <Popup>
-                                <strong>{d.name}</strong>
-                                <br />
-                                {d.displayName}
-                                {(d.category || d.note) && (
-                                    <>
-                                        <br />
-                                        {[d.category, d.note].filter(Boolean).join(" · ")}
-                                    </>
-                                )}
-                            </Popup>
-                        </Marker>
-                    ))}
-                </MapContainer>
+            <div className="card map-card" ref={mapRef}>
+                <MapView points={points} selectedId={selectedId} onSelect={(id) => setSelectedId(id as number | null)} />
             </div>
 
             <div className="card flush">
@@ -240,7 +214,10 @@ export function DestinationsPage() {
                                 </button>
                             </form>
                         ) : (
-                            <div key={d.id} className={`list-row row-wrap${d.visited ? " is-checked" : ""}`}>
+                            <div
+                                key={d.id}
+                                className={`list-row row-wrap${d.visited ? " is-checked" : ""}${selectedId === d.id ? " is-selected" : ""}`}
+                            >
                                 <input
                                     type="checkbox"
                                     className="check"
@@ -263,13 +240,11 @@ export function DestinationsPage() {
                                 </div>
                                 <div className="row-actions">
                                     <button
-                                        className={`btn btn-sm${focused?.id === d.id ? " btn-primary" : ""}`}
-                                        onClick={() => {
-                                            setFocused(focused?.id === d.id ? null : d);
-                                            window.scrollTo({ top: 0, behavior: "smooth" });
-                                        }}
+                                        className={`btn btn-sm${selectedId === d.id ? " btn-primary" : ""}`}
+                                        onClick={() => (selectedId === d.id ? setSelectedId(null) : select(d.id))}
                                     >
-                                        {focused?.id === d.id ? "Ver todos" : "Ver"}
+                                        <Icon name="pin" size={15} />
+                                        {selectedId === d.id ? "Ver todos" : "Ver"}
                                     </button>
                                     <button
                                         className="btn btn-ghost btn-sm icon-btn"
@@ -283,9 +258,15 @@ export function DestinationsPage() {
                                     <button
                                         className="btn btn-ghost btn-sm icon-btn"
                                         disabled={busy}
-                                        onClick={() => {
-                                            if (!window.confirm(`¿Eliminar el destino "${d.name}"?`)) return;
-                                            if (focused?.id === d.id) setFocused(null);
+                                        onClick={async () => {
+                                            const ok = await confirm({
+                                                title: `¿Eliminar «${d.name}»?`,
+                                                body: "Se quita de la lista y del mapa para todos los usuarios.",
+                                                confirmLabel: "Eliminar",
+                                                destructive: true,
+                                            });
+                                            if (!ok) return;
+                                            if (selectedId === d.id) setSelectedId(null);
                                             void run(() => api.deleteDestination(d.id));
                                         }}
                                         aria-label={`Eliminar ${d.name}`}

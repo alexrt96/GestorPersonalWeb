@@ -1,30 +1,8 @@
-import { useEffect } from "react";
-import { MapContainer, Marker, Popup, TileLayer, useMap } from "react-leaflet";
-import L from "leaflet";
-import markerIcon from "leaflet/dist/images/marker-icon.png";
-import markerShadow from "leaflet/dist/images/marker-shadow.png";
-import "leaflet/dist/leaflet.css";
 import type { TripDetail, TripStop } from "../api/types";
 import { EmptyState, PageHeader } from "../components/ui";
 import { Icon } from "../components/Icon";
+import { MapView } from "../components/MapView";
 import { daysBetween, formatDay } from "../components/shared";
-
-const stopIcon = L.icon({
-    iconUrl: markerIcon,
-    shadowUrl: markerShadow,
-    iconSize: [25, 41],
-    iconAnchor: [12, 41],
-    popupAnchor: [1, -34],
-});
-
-/** Centra el mapa en la parada cada vez que cambia. */
-function CenterOn({ lat, lng }: { lat: number; lng: number }) {
-    const map = useMap();
-    useEffect(() => {
-        map.setView([lat, lng], 15);
-    }, [lat, lng, map]);
-    return null;
-}
 
 function Detail({ label, value }: { label: string; value: string }) {
     return (
@@ -97,24 +75,24 @@ export function TripStopView({
 
             <div className="card map-card">
                 {lat !== null && lng !== null ? (
-                    <MapContainer key={stop.id} center={[lat, lng]} zoom={15} scrollWheelZoom={false}>
-                        <TileLayer
-                            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-                            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                        />
-                        <CenterOn lat={lat} lng={lng} />
-                        <Marker position={[lat, lng]} icon={stopIcon}>
-                            <Popup>
-                                <strong>{stop.title}</strong>
-                                {stop.place && (
-                                    <>
-                                        <br />
-                                        {stop.place}
-                                    </>
-                                )}
-                            </Popup>
-                        </Marker>
-                    </MapContainer>
+                    // Sin `key`: al pasar a la parada anterior/siguiente el mapa vuela hasta ella en vez de recargarse.
+                    <MapView
+                        points={[
+                            {
+                                id: stop.id,
+                                lat,
+                                lng,
+                                popup: (
+                                    <div className="map-popup">
+                                        <strong>{stop.title}</strong>
+                                        {stop.place && <span>{stop.place}</span>}
+                                    </div>
+                                ),
+                            },
+                        ]}
+                        fitMaxZoom={15}
+                        interactive={false}
+                    />
                 ) : (
                     <EmptyState icon="pin" title="Sin ubicación en el mapa" text="Edita la parada y escribe el lugar (con la ciudad) para situarla." />
                 )}

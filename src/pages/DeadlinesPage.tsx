@@ -5,6 +5,7 @@ import { usePolling } from "../hooks/usePolling";
 import type { Deadline, DeadlineInput, DeadlineRepeat } from "../api/types";
 import { Alert, EmptyState, PageHeader, RefreshButton, SkeletonRows } from "../components/ui";
 import { Icon } from "../components/Icon";
+import { useConfirm } from "../components/ConfirmDialog";
 import { daysFromToday, formatDay, todayIso } from "../components/shared";
 
 /** Categorías sugeridas (la API guarda el texto tal cual). */
@@ -148,6 +149,7 @@ export function DeadlinesPage() {
     const [busy, setBusy] = useState(false);
     const [actionError, setActionError] = useState<string | null>(null);
     const [editingId, setEditingId] = useState<number | null>(null);
+    const [confirmDialog, confirm] = useConfirm();
     // Cambia al añadir uno para vaciar el formulario de alta (se remonta con otra key).
     const [formKey, setFormKey] = useState(0);
 
@@ -230,8 +232,9 @@ export function DeadlinesPage() {
                     <button
                         className="btn btn-ghost btn-sm icon-btn"
                         disabled={busy}
-                        onClick={() => {
-                            if (!window.confirm(`¿Eliminar el vencimiento "${d.title}"?`)) return;
+                        onClick={async () => {
+                            const ok = await confirm({ title: `¿Eliminar «${d.title}»?`, body: "Esta acción no se puede deshacer.", confirmLabel: "Eliminar", destructive: true });
+                            if (!ok) return;
                             void run(() => api.deleteDeadline(d.id));
                         }}
                         aria-label={`Eliminar ${d.title}`}
@@ -258,6 +261,7 @@ export function DeadlinesPage() {
                 actions={<RefreshButton onClick={refresh} loading={loading} disabled={busy} />}
             />
 
+            {confirmDialog}
             {error && <Alert>{error}</Alert>}
             {actionError && <Alert>{actionError}</Alert>}
 

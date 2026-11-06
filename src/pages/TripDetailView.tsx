@@ -1,11 +1,14 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { api, ApiError } from "../api/client";
 import { usePolling } from "../hooks/usePolling";
 import type { PlaceCandidate, TripDetail, TripStop, TripStopInput } from "../api/types";
 import { Alert, EmptyState, PageHeader, RefreshButton, SkeletonRows } from "../components/ui";
 import { Icon } from "../components/Icon";
-import { daysBetween, formatDay, formatRange } from "../components/shared";
+import { MapView } from "../components/MapView";
+import type { MapPoint } from "../components/MapView";
+import { useConfirm } from "../components/ConfirmDialog";
+import { daysBetween, formatDay, formatRange, todayIso } from "../components/shared";
 import { TripForm } from "./TripForm";
 import { TripStopView } from "./TripStopView";
 import { navigate } from "../hooks/useRoute";
@@ -97,6 +100,78 @@ function stopToInput(s: TripStop): TripStopInput {
     return { title: s.title, day: s.day, time: s.time ?? "", place: s.place ?? "", note: s.note ?? "" };
 }
 
+function hasLocation(s: TripStop): s is TripStop & { latitude: number; longitude: number } {
+    return typeof s.latitude === "number" && typeof s.longitude === "number";
+}
+
+/**
+ * Número de cada parada con ubicación dentro de su día (1, 2, 3… en el orden del itinerario). Es el que se ve en el
+ * pin del mapa del día y junto a la parada en la lista, para poder relacionarlos.
+ */
+function stopNumbers(stops: TripStop[]): Map<number, number> {
+    const numbers = new Map<number, number>();
+    stops.filter(hasLocation).forEach((s, i) => numbers.set(s.id, i + 1));
+    return numbers;
+}
+
+/** Mapa de un día: sus paradas con ubicación, numeradas y unidas en orden. El globo de cada pin abre la parada. */
+function DayMap({ stops, onOpen }: { stops: TripStop[]; onOpen: (stopId: number) => void }) {
+    const located = stops.filter(hasLocation);
+    if (located.length === 0) return null;
+    const points: MapPoint[] = located.map((s, i) => ({
+        id: s.id,
+        lat: s.latitude,
+        lng: s.longitude,
+        label: String(i + 1),
+        popup: (
+            <div className="map-popup">
+                <strong>
+                    {i + 1}. {s.title}
+                </strong>
+                {(s.time || s.place) && <span>{[s.time, s.place].filter(Boolean).join(" · ")}</span>}
+                <button className="btn btn-sm btn-primary map-popup-action" onClick={() => onOpen(s.id)}>
+                    Abrir parada
+                </button>
+            </div>
+        ),
+    }));
+    return (
+        <div className="map-card day-map">
+            <MapView points={points} route fitMaxZoom={15} focusZoom={15} />
+        </div>
+    );
+}
+
+export type TripTab = "itinerary" | "packing";
+
+const TAB_KEY = (tripId: number) => `gestorpersonal.tripTab.${tripId}`;
+
+/** Última pestaña usada en cada viaje (en este navegador): si estabas haciendo la maleta, el viaje se abre en Equipaje. */
+function readTripTab(tripId: number): TripTab | null {
+    try {
+        const v = localStorage.getItem(TAB_KEY(tripId));
+        return v === "packing" || v === "itinerary" ? v : null;
+    } catch {
+        return null;
+    }
+}
+
+function storeTripTab(tripId: number, tab: TripTab): void {
+    try {
+        localStorage.setItem(TAB_KEY(tripId), tab);
+    } catch {
+        // sin almacenamiento: simplemente no se recuerda
+    }
+}
+
+/** "D3 · lun 23" (o solo la fecha si el día cae fuera de las fechas del viaje). */
+function chipLabel(day: string, startDate: string, totalDays: number): string {
+    const n = daysBetween(startDate, day) + 1;
+    const [y, m, d] = day.split("-").map(Number);
+    const short = new Date(y, m - 1, d).toLocaleDateString("es-ES", { weekday: "short", day: "numeric" });
+    return n >= 1 && n <= totalDays ? `D${n} · ${short}` : short;
+}
+
 /** Agrupa las paradas (ya ordenadas por la API) por día. */
 function groupByDay(stops: TripStop[]): { day: string; stops: TripStop[] }[] {
     const groups: { day: string; stops: TripStop[] }[] = [];
@@ -108,16 +183,101 @@ function groupByDay(stops: TripStop[]): { day: string; stops: TripStop[] }[] {
     return groups;
 }
 
-export function TripDetailView({ tripId, stopId, onBack }: { tripId: number; stopId: number | null; onBack: () => void }) {
+export function TripDetailView({
+    tripId,
+    stopId,
+    tab,
+    onBack,
+}: {
+    tripId: number;
+    stopId: number | null;
+    tab: TripTab;
+    onBack: () => void;
+}) {
     const { data, error, loading, refresh } = usePolling(() => api.trip(tripId), 30_000);
     const [busy, setBusy] = useState(false);
     const [actionError, setActionError] = useState<string | null>(null);
     const [editingTrip, setEditingTrip] = useState(false);
+    const [confirmDialog, confirm] = useConfirm();
     const [editingStopId, setEditingStopId] = useState<number | null>(null);
     const [stopFormKey, setStopFormKey] = useState(0);
     const [packingName, setPackingName] = useState("");
     // Varios lugares encajan con el texto escrito: se elige cuál guardar (o guardar la parada sin mapa).
     const [choices, setChoices] = useState<{ previous: TripStop | null; input: TripStopInput; places: PlaceCandidate[] } | null>(null);
+    // Pestañas: cada una recuerda su posición de scroll; el día que se está viendo resalta su chip.
+    const scrollByTab = useRef<Partial<Record<TripTab, number>>>({});
+    const [activeDay, setActiveDay] = useState<string | null>(null);
+    const chipsRef = useRef<HTMLDivElement>(null);
+    const jumpedToToday = useRef(false);
+
+    // Al abrir el viaje sin pestaña en la URL, si la última vez se usó Equipaje se vuelve a ella.
+    useEffect(() => {
+        if (stopId === null && tab === "itinerary" && readTripTab(tripId) === "packing") {
+            navigate(`/trips/${tripId}/packing`, true);
+        }
+        // Solo al montar (cada viaje se monta de nuevo: key={tripId}).
+        // oxlint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    // Al cambiar de pestaña se recupera su scroll (después del "volver arriba" que hace App al cambiar la URL).
+    useEffect(() => {
+        if (stopId !== null) return;
+        storeTripTab(tripId, tab);
+        const y = scrollByTab.current[tab] ?? 0;
+        const frame = requestAnimationFrame(() => window.scrollTo(0, y));
+        return () => cancelAnimationFrame(frame);
+    }, [tab, tripId, stopId]);
+
+    // Día visible = el último cuya cabecera ya ha pasado bajo la barra fija de pestañas y chips.
+    useEffect(() => {
+        if (tab !== "itinerary" || stopId !== null) return;
+        let frame = 0;
+        const update = () => {
+            frame = 0;
+            const nav = document.querySelector(".trip-nav");
+            const limit = (nav?.getBoundingClientRect().bottom ?? 120) + 24;
+            let current: string | null = null;
+            document.querySelectorAll<HTMLElement>("[data-day]").forEach((el) => {
+                if (el.getBoundingClientRect().top <= limit) current = el.dataset.day ?? null;
+            });
+            setActiveDay(current ?? document.querySelector<HTMLElement>("[data-day]")?.dataset.day ?? null);
+        };
+        const onScroll = () => {
+            if (!frame) frame = requestAnimationFrame(update);
+        };
+        update();
+        window.addEventListener("scroll", onScroll, { passive: true });
+        return () => {
+            window.removeEventListener("scroll", onScroll);
+            if (frame) cancelAnimationFrame(frame);
+        };
+    }, [tab, stopId, data]);
+
+    // La fila de chips se desplaza sola para que el chip del día visible quede a la vista.
+    useEffect(() => {
+        const row = chipsRef.current;
+        const chip = row?.querySelector<HTMLElement>(".chip.active");
+        if (row && chip) row.scrollTo({ left: chip.offsetLeft - 16, behavior: "smooth" });
+    }, [activeDay]);
+
+    // Durante el viaje, la primera vez que se abre el itinerario se baja directamente al día de hoy.
+    useEffect(() => {
+        if (jumpedToToday.current || data === null || tab !== "itinerary" || stopId !== null) return;
+        jumpedToToday.current = true;
+        if (!data.stops.some((s) => s.day === todayIso())) return;
+        const frame = requestAnimationFrame(() => document.getElementById(`day-${todayIso()}`)?.scrollIntoView({ block: "start" }));
+        return () => cancelAnimationFrame(frame);
+    }, [data, tab, stopId]);
+
+    function switchTab(next: TripTab) {
+        if (next === tab) return;
+        scrollByTab.current[tab] = window.scrollY;
+        navigate(next === "packing" ? `/trips/${tripId}/packing` : `/trips/${tripId}`, true);
+    }
+
+    function jumpToDay(day: string) {
+        document.getElementById(`day-${day}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
 
     async function run(action: () => Promise<unknown>) {
         setBusy(true);
@@ -193,6 +353,7 @@ export function TripDetailView({ tripId, stopId, onBack }: { tripId: number; sto
 
     const totalDays = daysBetween(trip.startDate, trip.endDate) + 1;
     const checked = trip.packing.filter((p) => p.checked).length;
+    const groups = groupByDay(trip.stops);
 
     function dayLabel(day: string): string {
         const n = daysBetween(trip.startDate, day) + 1;
@@ -214,8 +375,14 @@ export function TripDetailView({ tripId, stopId, onBack }: { tripId: number; sto
                         <button
                             className="btn btn-sm btn-danger"
                             disabled={busy}
-                            onClick={() => {
-                                if (!window.confirm(`¿Eliminar el viaje "${trip.name}" con su itinerario y su equipaje?`)) return;
+                            onClick={async () => {
+                                const ok = await confirm({
+                                    title: `¿Eliminar el viaje «${trip.name}»?`,
+                                    body: "Se borran también su itinerario y su lista de equipaje, para todos los usuarios.",
+                                    confirmLabel: "Eliminar viaje",
+                                    destructive: true,
+                                });
+                                if (!ok) return;
                                 void run(async () => {
                                     await api.deleteTrip(trip.id);
                                     onBack();
@@ -230,6 +397,7 @@ export function TripDetailView({ tripId, stopId, onBack }: { tripId: number; sto
                 }
             />
 
+            {confirmDialog}
             {error && <Alert>{error}</Alert>}
             {actionError && <Alert>{actionError}</Alert>}
 
@@ -248,8 +416,42 @@ export function TripDetailView({ tripId, stopId, onBack }: { tripId: number; sto
                 </div>
             )}
 
-            <section>
-                <h2 className="card-title">Itinerario</h2>
+            {/* Pestañas + chips de días: fijas bajo la cabecera mientras se hace scroll. */}
+            <div className="trip-nav">
+                <div className="segmented" role="tablist" aria-label="Secciones del viaje">
+                    <button role="tab" aria-selected={tab === "itinerary"} className={tab === "itinerary" ? "active" : ""} onClick={() => switchTab("itinerary")}>
+                        <Icon name="pin" size={15} />
+                        Itinerario
+                    </button>
+                    <button role="tab" aria-selected={tab === "packing"} className={tab === "packing" ? "active" : ""} onClick={() => switchTab("packing")}>
+                        <Icon name="bookmark" size={15} />
+                        Equipaje
+                        {trip.packing.length > 0 && (
+                            <span className={`badge${checked === trip.packing.length ? " badge-success" : ""}`}>
+                                {checked}/{trip.packing.length}
+                            </span>
+                        )}
+                    </button>
+                </div>
+                {tab === "itinerary" && groups.length > 1 && (
+                    <div className="day-chips" ref={chipsRef} aria-label="Ir a un día">
+                        {groups.map((g) => (
+                            <button
+                                key={g.day}
+                                className={`chip${activeDay === g.day ? " active" : ""}`}
+                                aria-current={activeDay === g.day ? "true" : undefined}
+                                onClick={() => jumpToDay(g.day)}
+                            >
+                                {g.day === todayIso() ? "Hoy · " : ""}
+                                {chipLabel(g.day, trip.startDate, totalDays)}
+                            </button>
+                        ))}
+                    </div>
+                )}
+            </div>
+
+            {tab === "itinerary" && (
+            <section className="tab-panel">
                 <div className="card">
                     <StopForm
                         key={stopFormKey}
@@ -312,9 +514,15 @@ export function TripDetailView({ tripId, stopId, onBack }: { tripId: number; sto
                     {trip.stops.length === 0 ? (
                         <EmptyState icon="pin" title="Sin itinerario" text="Añade paradas o actividades con su día y hora." />
                     ) : (
-                        groupByDay(trip.stops).map((g) => (
-                            <div key={g.day}>
-                                <div className="group-label">{dayLabel(g.day)}</div>
+                        groups.map((g) => {
+                            const numbers = stopNumbers(g.stops);
+                            return (
+                            <div key={g.day} id={`day-${g.day}`} data-day={g.day} className="day-group">
+                                <div className="group-label">
+                                    {dayLabel(g.day)}
+                                    {g.day === todayIso() && <span className="badge badge-accent">Hoy</span>}
+                                </div>
+                                <DayMap stops={g.stops} onOpen={(id) => navigate(`/trips/${trip.id}/stops/${id}`)} />
                                 {g.stops.map((s) =>
                                     editingStopId === s.id ? (
                                         <div key={s.id} className="list-row row-wrap">
@@ -337,9 +545,13 @@ export function TripDetailView({ tripId, stopId, onBack }: { tripId: number; sto
                                             <div className="row-main">
                                                 <div className="row-title">
                                                     {s.title}
-                                                    {typeof s.latitude === "number" && typeof s.longitude === "number" && (
-                                                        <span className="stop-pin" title="Con ubicación en el mapa" aria-label="Con ubicación en el mapa">
-                                                            <Icon name="pin" size={14} />
+                                                    {numbers.has(s.id) && (
+                                                        <span
+                                                            className="stop-num"
+                                                            title={`Punto ${numbers.get(s.id)} en el mapa del día`}
+                                                            aria-label={`Punto ${numbers.get(s.id)} en el mapa del día`}
+                                                        >
+                                                            {numbers.get(s.id)}
                                                         </span>
                                                     )}
                                                 </div>
@@ -369,15 +581,26 @@ export function TripDetailView({ tripId, stopId, onBack }: { tripId: number; sto
                                     ),
                                 )}
                             </div>
-                        ))
+                            );
+                        })
                     )}
                 </div>
             </section>
+            )}
 
-            <section>
-                <h2 className="card-title">
-                    Equipaje {trip.packing.length > 0 && <span className="badge">{checked}/{trip.packing.length}</span>}
-                </h2>
+            {tab === "packing" && (
+            <section className="tab-panel">
+                {trip.packing.length > 0 && (
+                    <div className="packing-progress">
+                        <div className="progress">
+                            <span
+                                className={checked === trip.packing.length ? "is-done" : ""}
+                                style={{ width: `${(checked / trip.packing.length) * 100}%` }}
+                            />
+                        </div>
+                        <span>{checked === trip.packing.length ? "¡Todo listo!" : `${checked} de ${trip.packing.length}`}</span>
+                    </div>
+                )}
                 <form
                     className="card"
                     onSubmit={(e) => {
@@ -444,6 +667,7 @@ export function TripDetailView({ tripId, stopId, onBack }: { tripId: number; sto
                     )}
                 </div>
             </section>
+            )}
         </div>
     );
 }

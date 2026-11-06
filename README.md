@@ -6,7 +6,7 @@ Cliente web (React 19 + TypeScript + Vite) de **GestorPersonal**. Habla con la m
 
 | Pestaña | Qué hace |
 |---|---|
-| Dispositivos / Actividad BT | **Solo lectura** de BluetoothLocator: dispositivos con su último punto en un mapa (Leaflet + OpenStreetMap) y diario de actividad. |
+| Dispositivos / Actividad BT | **Solo lectura** de BluetoothLocator: dispositivos con su último punto en un mapa (Leaflet + OpenStreetMap, `MapView`) y diario de actividad. "Ver" vuela hasta el dispositivo. |
 | Lista de la compra | Lista compartida: añadir, marcar, cambiar cantidad, **editar nombre y categoría** (lápiz → edición en línea), borrar con **Deshacer** (barra inferior, 10 s), quitar marcados, plantillas (se guardan con la categoría de cada producto). Une duplicados (lo decide la API). Autocompleta el nombre con productos usados antes (y pone su categoría habitual). Se refresca cada 20 s y al volver a la pestaña. Detalle en `GestorPersonal/docs/modules/SHOPPINGLIST.md`. |
 | Destinos | Añadir un lugar por nombre: si hay varios resultados (Nominatim) se elige el correcto en una tarjeta; verlos en un mapa (los visitados en verde), **editar** nombre / nota / categoría (lápiz → edición en línea), marcarlos como **visitados** (casilla) y borrarlos. |
 | WoffuManager | Ajustes (token / userId), diario mensual con detalle por día y "Arreglar día", y registro de actividad. La activación de la automatización se gestiona solo desde el móvil. |
@@ -23,7 +23,7 @@ Cada pantalla tiene su dirección (con `#`, así funciona en cualquier hosting e
 |---|---|
 | `#/devices` · `#/carlogs` · `#/shopping` · `#/destinations` · `#/deadlines` · `#/settings` | Pestañas del menú |
 | `#/woffu/diary` · `#/woffu/settings` · `#/woffu/logs` | Subpestañas de WoffuManager |
-| `#/trips` · `#/trips/2` · `#/trips/2/stops/17` | Lista de viajes, un viaje y una parada |
+| `#/trips` · `#/trips/2` · `#/trips/2/packing` · `#/trips/2/stops/17` | Lista de viajes, un viaje (pestaña Itinerario o Equipaje) y una parada |
 
 Elegir una pestaña o abrir una pantalla añade una entrada al historial; pasar a la parada anterior/siguiente **sustituye** la entrada actual, así "atrás" vuelve al viaje en vez de recorrer todas las paradas vistas. Una dirección sin pestaña válida (primera visita, enlace antiguo o módulo desactivado) se corrige a la última pestaña usada, sin dejar la dirección mala en el historial. Lógica en `src/hooks/useRoute.ts` (sin librería de rutas). Cada pantalla nueva empieza arriba del todo.
 
@@ -43,5 +43,17 @@ Al abrirla pide la **URL de la API** y la **API key** (se guardan en `localStora
 - `src/api/` — `client.ts` (todas las llamadas), `types.ts`, `config.ts` (credenciales y sesión en `localStorage`).
 - `src/hooks/useRoute.ts` — navegación por URL con el hash (`useRoute`, `navigate`, `routeId`).
 - `src/hooks/usePolling.ts` — carga datos con refresco manual y por intervalo; solo mientras la pestaña está visible, y refresca al instante al volver a ella.
-- `src/pages/` — una página por pestaña. `src/modules.ts` — módulos y pestañas. `src/components/` — `ui.tsx`, `Icon.tsx` (iconos de trazo en línea), `LoginGate`, `ApiKeyGate`.
+- `src/pages/` — una página por pestaña. `src/modules.ts` — módulos y pestañas. `src/components/` — `ui.tsx`, `Icon.tsx` (iconos de trazo en línea), `LoginGate`, `ApiKeyGate`, `MapView.tsx` y `ConfirmDialog.tsx` (ver abajo).
 - `src/index.css` — sistema de diseño Nocturne (tokens en `:root`, tema oscuro igual que la app).
+
+## Mapas, diálogos y animaciones
+
+- **`MapView`** (`src/components/MapView.tsx`) es el único mapa de la web (Dispositivos, Destinos y la vista de parada). Recibe `points` (`id`, `lat`, `lng`, `tone` acento/verde y el contenido del globo) y opcionalmente `selectedId` + `onSelect`:
+  - Teselas de **OpenStreetMap oscurecidas por CSS** (`.map-tiles-dark`, solo la capa de teselas; los pines conservan su color). Las teselas oscuras de CARTO se probaron y ya exigen API key.
+  - **Pines propios** en SVG (`.map-pin`): acento, verde para "visitado", el seleccionado más grande con un halo que late; caen con un pequeño rebote al aparecer.
+  - **Cámara**: la primera vez se coloca sin animación; después **vuela** (`flyTo`/`flyToBounds`). Solo se mueve si cambia el conjunto de puntos o la selección, así el refresco periódico o editar una nota **no deshace el zoom** del usuario.
+  - **Selección enlazada con la lista**: "Ver" en una fila vuela hasta el punto y abre su globo (la fila queda resaltada, `.list-row.is-selected`); tocar un pin lo selecciona; el botón flotante **"Ver todos"** (o "Ver todos" en la fila) vuelve a encuadrarlo todo. Si el mapa no se ve entero, la página sube hasta él.
+  - La rueda del ratón solo hace zoom después de pulsar el mapa (si no, el mapa "atrapa" el scroll de la página).
+  - Opciones extra: `label` en cada punto (texto corto dentro del pin, p. ej. el número de parada) y `route` (une los puntos en orden con una línea discontinua que se "dibuja" al aparecer). Las usa el **mapa de cada día** del itinerario de un viaje (`DayMap` en `TripDetailView.tsx`).
+- **`useConfirm()`** (`src/components/ConfirmDialog.tsx`) sustituye a `window.confirm` en todos los borrados: diálogo con el estilo de la app (hoja inferior en móvil), Escape o pulsar fuera cancelan y el botón de confirmar va en rojo si borra algo. Uso: `const [dialog, confirm] = useConfirm();` → pintar `{dialog}` y `if (await confirm({ title, body, confirmLabel, destructive: true })) …`.
+- **Animaciones** (todas en `index.css` y desactivadas con `prefers-reduced-motion`): entrada de página, filas de las listas con fundido escalonado (solo al aparecer, los refrescos no las repiten), casillas que "rebotan" al marcarse, botones que se encogen al pulsar, aviso "Deshacer" que sube, diálogos y globos del mapa con fundido.
